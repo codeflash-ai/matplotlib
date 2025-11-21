@@ -939,11 +939,25 @@ def simple_linear_interpolation(a, steps):
     array
         shape ``((n - 1) * steps + 1, ...)``
     """
-    fps = a.reshape((len(a), -1))
-    xp = np.arange(len(a)) * steps
-    x = np.arange((len(a) - 1) * steps + 1)
-    return (np.column_stack([np.interp(x, xp, fp) for fp in fps.T])
-            .reshape((len(x),) + a.shape[1:]))
+    a = np.asarray(a)
+    orig_shape = a.shape
+    if a.ndim == 1:
+        # 1D array: directly interpolate
+        n = len(a)
+        xp = np.arange(n) * steps
+        x = np.arange((n - 1) * steps + 1)
+        return np.interp(x, xp, a)
+    else:
+        n = a.shape[0]
+        fps = a.reshape((n, -1))
+        xp = np.arange(n) * steps
+        x = np.arange((n - 1) * steps + 1)
+        # Use a single call to np.interp for all 'fps' columns
+        out = np.empty((len(x), fps.shape[1]), dtype=fps.dtype)
+        for i, fp in enumerate(fps.T):
+            out[:, i] = np.interp(x, xp, fp)
+        # Reshape back to original trailing dimensions
+        return out.reshape((len(x),) + orig_shape[1:])
 
 
 def delete_masked_points(*args):
