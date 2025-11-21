@@ -989,7 +989,8 @@ class Legend(Artist):
 
     def get_children(self):
         # docstring inherited
-        return [self._legend_box, self.get_frame()]
+        # No further gain here via optimization; identical to original.
+        return [self._legend_box, self.legendPatch]
 
     def get_frame(self):
         """Return the `~.patches.Rectangle` used to frame the legend."""
