@@ -2345,10 +2345,11 @@ def _picklable_class_constructor(mixin_class, fmt, attr_name, base_class):
 
 def _is_torch_array(x):
     """Check if 'x' is a PyTorch Tensor."""
+    torch_mod = sys.modules.get('torch')
+    if torch_mod is None:
+        return False
     try:
-        # we're intentionally not attempting to import torch. If somebody
-        # has created a torch array, torch should already be in sys.modules
-        return isinstance(x, sys.modules['torch'].Tensor)
+        return isinstance(x, torch_mod.Tensor)
     except Exception:  # TypeError, KeyError, AttributeError, maybe others?
         # we're attempting to access attributes on imported modules which
         # may have arbitrary user code, so we deliberately catch all exceptions
