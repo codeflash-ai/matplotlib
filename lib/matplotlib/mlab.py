@@ -286,48 +286,57 @@ def _spectral_helper(x, y=None, NFFT=None, Fs=None, detrend_func=None,
     # For real x, ignore the negative frequencies unless told otherwise
     if sides == 'twosided':
         numFreqs = pad_to
-        if pad_to % 2:
-            freqcenter = (pad_to - 1)//2 + 1
-        else:
-            freqcenter = pad_to//2
+        freqcenter = pad_to//2 if pad_to % 2 == 0 else (pad_to - 1)//2 + 1
         scaling_factor = 1.
     elif sides == 'onesided':
-        if pad_to % 2:
-            numFreqs = (pad_to + 1)//2
-        else:
-            numFreqs = pad_to//2 + 1
+        numFreqs = pad_to//2 + 1 if pad_to % 2 == 0 else (pad_to + 1)//2
         scaling_factor = 2.
 
     if not np.iterable(window):
-        window = window(np.ones(NFFT, x.dtype))
-    if len(window) != NFFT:
+        window_vals = window(np.ones(NFFT, x.dtype))
+    else:
+        window_vals = np.asarray(window)
+    if window_vals.shape[0] != NFFT:
         raise ValueError(
             "The window length must match the data's first dimension")
 
-    result = np.lib.stride_tricks.sliding_window_view(
-        x, NFFT, axis=0)[::NFFT - noverlap].T
+    win_sum = window_vals.sum()
+    win_energy = np.dot(window_vals, window_vals)
+
+    # Sliding window segment extraction: replaces .T pattern
+    step = NFFT - noverlap
+    num_segments = (len(x) - NFFT) // step + 1
+    # Special-case: If input is >1D (rare for spectrum, but possible), use existing code
+    if x.ndim == 1:
+        result = _sliding_window_2d(x, NFFT, step, dtype=x.dtype)
+    else:
+        result = np.lib.stride_tricks.sliding_window_view(x, NFFT, axis=0)[::step].T
+
     result = detrend(result, detrend_func, axis=0)
-    result = result * window.reshape((-1, 1))
+    result = result * window_vals.reshape((-1, 1))
     result = np.fft.fft(result, n=pad_to, axis=0)[:numFreqs, :]
     freqs = np.fft.fftfreq(pad_to, 1/Fs)[:numFreqs]
 
     if not same_data:
-        # if same_data is False, mode must be 'psd'
-        resultY = np.lib.stride_tricks.sliding_window_view(
-            y, NFFT, axis=0)[::NFFT - noverlap].T
+        if y.ndim == 1:
+            resultY = _sliding_window_2d(y, NFFT, step, dtype=y.dtype)
+        else:
+            resultY = np.lib.stride_tricks.sliding_window_view(y, NFFT, axis=0)[::step].T
+
         resultY = detrend(resultY, detrend_func, axis=0)
-        resultY = resultY * window.reshape((-1, 1))
+        resultY = resultY * window_vals.reshape((-1, 1))
         resultY = np.fft.fft(resultY, n=pad_to, axis=0)[:numFreqs, :]
         result = np.conj(result) * resultY
     elif mode == 'psd':
         result = np.conj(result) * result
     elif mode == 'magnitude':
-        result = np.abs(result) / window.sum()
+        result = np.abs(result) / win_sum
     elif mode == 'angle' or mode == 'phase':
         # we unwrap the phase later to handle the onesided vs. twosided case
         result = np.angle(result)
     elif mode == 'complex':
-        result /= window.sum()
+        result /= win_sum
+
 
     if mode == 'psd':
 
@@ -349,14 +358,12 @@ def _spectral_helper(x, y=None, NFFT=None, Fs=None, detrend_func=None,
         # values. Perform the same scaling here.
         if scale_by_freq:
             result /= Fs
-            # Scale the spectrum by the norm of the window to compensate for
-            # windowing loss; see Bendat & Piersol Sec 11.5.2.
-            result /= (window**2).sum()
+            result /= win_energy
         else:
-            # In this case, preserve power in the segment, not amplitude
-            result /= window.sum()**2
+            result /= win_sum**2
 
-    t = np.arange(NFFT/2, len(x) - NFFT/2 + 1, NFFT - noverlap)/Fs
+    t = np.arange(NFFT/2, len(x) - NFFT/2 + 1, step)/Fs
+
 
     if sides == 'twosided':
         # center the frequency range at zero
@@ -765,6 +772,23 @@ def cohere(x, y, NFFT=256, Fs=2, detrend=detrend_none, window=window_hanning,
                  scale_by_freq)
     Cxy = np.abs(Pxy) ** 2 / (Pxx * Pyy)
     return Cxy, f
+
+
+def _sliding_window_2d(arr, window_size, step, dtype=None):
+    """
+    Efficiently create a 2D array where each column is a sliding window view of arr.
+    Only works for 1D arrays.
+    """
+    arr = np.asarray(arr)
+    n = arr.shape[0]
+    if n < window_size:
+        arr = np.resize(arr, window_size)
+        arr[n:] = 0
+        n = window_size
+    num_windows = (n - window_size) // step + 1
+    shape = (window_size, num_windows)
+    strides = (arr.strides[0], arr.strides[0]*step)
+    return np.lib.stride_tricks.as_strided(arr, shape=shape, strides=strides).copy()
 
 
 class GaussianKDE:
