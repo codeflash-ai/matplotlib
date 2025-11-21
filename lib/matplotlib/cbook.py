@@ -500,7 +500,11 @@ def open_file_cm(path_or_file, mode="r", encoding=None):
 
 def is_scalar_or_string(val):
     """Return whether the given object is a scalar or string like."""
-    return isinstance(val, str) or not np.iterable(val)
+    # Fast path: check for string first (most common scalar-likes)
+    if isinstance(val, str):
+        return True
+    # Use attribute check for iterability (faster than numpy or collections)
+    return not hasattr(val, "__iter__")
 
 
 @_api.delete_parameter(

@@ -2,8 +2,9 @@
 
 from matplotlib import cbook, units
 import matplotlib.dates as date_ticker
+import matplotlib.testing.jpl_units as U
 
-__all__ = ['EpochConverter']
+__all__ = ["EpochConverter"]
 
 
 class EpochConverter(units.ConversionInterface):
@@ -35,9 +36,8 @@ class EpochConverter(units.ConversionInterface):
         - Returns the value converted to an Epoch in the specified time system.
         """
         # Delay-load due to circular dependencies.
-        import matplotlib.testing.jpl_units as U
 
-        secPastRef = value * 86400.0 * U.UnitDbl(1.0, 'sec')
+        secPastRef = value * 86400.0 * U.UnitDbl(1.0, "sec")
         return U.Epoch(unit, secPastRef, EpochConverter.jdRef)
 
     @staticmethod
@@ -73,8 +73,13 @@ class EpochConverter(units.ConversionInterface):
     def convert(value, unit, axis):
         # docstring inherited
 
-        # Delay-load due to circular dependencies.
-        import matplotlib.testing.jpl_units as U
+        # Memoized delayed import for U.
+        if not hasattr(EpochConverter.convert, "_U"):
+            import matplotlib.testing.jpl_units as U
+
+            EpochConverter.convert._U = U
+        else:
+            U = EpochConverter.convert._U
 
         if not cbook.is_scalar_or_string(value):
             return [EpochConverter.convert(x, unit, axis) for x in value]
