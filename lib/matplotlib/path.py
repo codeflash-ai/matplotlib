@@ -274,7 +274,10 @@ class Path:
         Return a shallow copy of the `Path`, which will share the
         vertices and codes with the source `Path`.
         """
-        return copy.copy(self)
+        cls = self.__class__
+        result = cls.__new__(cls)
+        result.__dict__ = self.__dict__.copy()
+        return result
 
     def __deepcopy__(self, memo=None):
         """
