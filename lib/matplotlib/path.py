@@ -131,19 +131,24 @@ class Path:
 
         if codes is not None:
             codes = np.asarray(codes, self.code_type)
-            if codes.ndim != 1 or len(codes) != len(vertices):
-                raise ValueError("'codes' must be a 1D list or array with the "
-                                 "same length of 'vertices'. "
-                                 f"Your vertices have shape {vertices.shape} "
-                                 f"but your codes have shape {codes.shape}")
-            if len(codes) and codes[0] != self.MOVETO:
-                raise ValueError("The first element of 'code' must be equal "
-                                 f"to 'MOVETO' ({self.MOVETO}).  "
-                                 f"Your first code is {codes[0]}")
-        elif closed and len(vertices):
-            codes = np.empty(len(vertices), dtype=self.code_type)
+            # Use np.shape for comparison to avoid calling len() and .shape separately
+            if codes.ndim != 1 or codes.shape[0] != vertices.shape[0]:
+                raise ValueError(
+                    f"'codes' must be a 1D list or array with the same length of 'vertices'. "
+                    f"Your vertices have shape {vertices.shape} but your codes have shape {codes.shape}")
+            if codes.shape[0] and codes[0] != self.MOVETO:
+                raise ValueError(
+                    f"The first element of 'code' must be equal to 'MOVETO' ({self.MOVETO}).  "
+                    f"Your first code is {codes[0]}")
+        elif closed and vertices.shape[0]:
+            codes = np.empty(vertices.shape[0], dtype=self.code_type)
             codes[0] = self.MOVETO
-            codes[1:-1] = self.LINETO
+            if codes.shape[0] > 2:
+                codes[1:-1].fill(self.LINETO)
+            elif codes.shape[0] == 2:
+                # Only assign if slice exists; small arrays
+                codes[1] = self.LINETO
+            # Always assign closepoly at end if shape[0] >= 1
             codes[-1] = self.CLOSEPOLY
 
         self._vertices = vertices
