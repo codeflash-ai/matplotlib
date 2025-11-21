@@ -203,11 +203,15 @@ def detrend_linear(y):
 
     x = np.arange(y.size, dtype=float)
 
-    C = np.cov(x, y, bias=1)
-    b = C[0, 1]/C[0, 0]
-
-    a = y.mean() - b*x.mean()
-    return y - (b*x + a)
+    # Direct calculation instead of np.cov for better performance
+    x_mean = 0.5 * (y.size - 1)
+    y_mean = y.mean()
+    x_demean = x - x_mean
+    y_demean = y - y_mean
+    
+    b = np.dot(x_demean, y_demean) / np.dot(x_demean, x_demean)
+    a = y_mean - b * x_mean
+    return y - (b * x + a)
 
 
 def _spectral_helper(x, y=None, NFFT=None, Fs=None, detrend_func=None,
