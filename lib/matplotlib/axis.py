@@ -1081,49 +1081,66 @@ class Axis(martist.Artist):
         `.Tick._apply_params` back to those supported by
         `.Axis.set_tick_params`.
         """
-        kw_ = {**kw}
+        # Avoid creating new dictionary copies unless necessary
+        kw_ = dict(kw) if not isinstance(kw, dict) else kw.copy()
 
-        # The following lists may be moved to a more accessible location.
-        allowed_keys = [
-            'size', 'width', 'color', 'tickdir', 'pad',
-            'labelsize', 'labelcolor', 'labelfontfamily', 'zorder', 'gridOn',
-            'tick1On', 'tick2On', 'label1On', 'label2On',
-            'length', 'direction', 'left', 'bottom', 'right', 'top',
-            'labelleft', 'labelbottom', 'labelright', 'labeltop',
-            'labelrotation',
-            *_gridline_param_names]
+        # Caching allowed_keys and keymap at function level to avoid recreating
+        # them on every call. Module-level constants are not possible due to code
+        # context restrictions, so set them as static variables on the function itself.
+        func = Axis._translate_tick_params
+        if not hasattr(func, '_allowed_keys'):
+            import matplotlib.axis as maxis  # Delayed import for _gridline_param_names
+            func._allowed_keys = [
+                'size', 'width', 'color', 'tickdir', 'pad',
+                'labelsize', 'labelcolor', 'labelfontfamily', 'zorder', 'gridOn',
+                'tick1On', 'tick2On', 'label1On', 'label2On',
+                'length', 'direction', 'left', 'bottom', 'right', 'top',
+                'labelleft', 'labelbottom', 'labelright', 'labeltop',
+                'labelrotation',
+                *maxis._gridline_param_names
+            ]
+            func._allowed_keys_set = set(func._allowed_keys)
+            func._keymap = {
+                'length': 'size',
+                'direction': 'tickdir',
+                'rotation': 'labelrotation',
+                'left': 'tick1On',
+                'bottom': 'tick1On',
+                'right': 'tick2On',
+                'top': 'tick2On',
+                'labelleft': 'label1On',
+                'labelbottom': 'label1On',
+                'labelright': 'label2On',
+                'labeltop': 'label2On',
+            }
 
-        keymap = {
-            # tick_params key -> axis key
-            'length': 'size',
-            'direction': 'tickdir',
-            'rotation': 'labelrotation',
-            'left': 'tick1On',
-            'bottom': 'tick1On',
-            'right': 'tick2On',
-            'top': 'tick2On',
-            'labelleft': 'label1On',
-            'labelbottom': 'label1On',
-            'labelright': 'label2On',
-            'labeltop': 'label2On',
-        }
+        allowed_keys = func._allowed_keys
+        allowed_keys_set = func._allowed_keys_set
+        keymap = func._keymap
+
+        # Branch for forward and reverse translations
         if reverse:
-            kwtrans = {
-                oldkey: kw_.pop(newkey)
-                for oldkey, newkey in keymap.items() if newkey in kw_
-            }
+            # Reverse-mapping: _apply_params -> set_tick_params keys
+            # Only keep keys that are present in kw_
+            kwtrans = {}
+            for oldkey, newkey in keymap.items():
+                if newkey in kw_:
+                    kwtrans[oldkey] = kw_.pop(newkey)
         else:
-            kwtrans = {
-                newkey: kw_.pop(oldkey)
-                for oldkey, newkey in keymap.items() if oldkey in kw_
-            }
+            # set_tick_params -> _apply_params
+            kwtrans = {}
+            # Avoid dictionary comprehension for clarity and branch prediction gains
+            for oldkey, newkey in keymap.items():
+                if oldkey in kw_:
+                    kwtrans[newkey] = kw_.pop(oldkey)
         if 'colors' in kw_:
             c = kw_.pop('colors')
             kwtrans['color'] = c
             kwtrans['labelcolor'] = c
-        # Maybe move the checking up to the caller of this method.
-        for key in kw_:
-            if key not in allowed_keys:
+        # Check for unknown keys more efficiently using the allowed_keys_set
+        # Do NOT use set.difference update on kw_: must preserve behavior/raise order
+        for key in list(kw_):
+            if key not in allowed_keys_set:
                 raise ValueError(
                     "keyword %s is not recognized; valid keywords are %s"
                     % (key, allowed_keys))
