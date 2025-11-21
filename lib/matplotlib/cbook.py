@@ -500,7 +500,18 @@ def open_file_cm(path_or_file, mode="r", encoding=None):
 
 def is_scalar_or_string(val):
     """Return whether the given object is a scalar or string like."""
-    return isinstance(val, str) or not np.iterable(val)
+    # isinstance(val, str) is already fast; optimize np.iterable check with quick type exclusions
+    if isinstance(val, str):
+        return True
+    # Avoid calling np.iterable unless absolutely necessary, as it's relatively slow
+    # Most common scalar types (int, float, complex, bool) are not iterable; return True quickly
+    if isinstance(val, (int, float, complex, bool)):
+        return True
+    # Early out for None
+    if val is None:
+        return True
+    # For other objects, use np.iterable (preserving semantic, e.g. numpy scalars)
+    return not np.iterable(val)
 
 
 @_api.delete_parameter(
