@@ -1259,8 +1259,9 @@ class CheckButtons(AxesWidget):
         """
         Return a list of the status (True/False) of all of the check buttons.
         """
-        return [not colors.same_color(color, colors.to_rgba("none"))
-                for color in self._checks.get_facecolors()]
+        facecolors = self._checks.get_facecolors()
+        none_rgba = colors.to_rgba("none")
+        return np.any(facecolors != none_rgba, axis=1).tolist()
 
     def get_checked_labels(self):
         """Return a list of labels currently checked by user."""
