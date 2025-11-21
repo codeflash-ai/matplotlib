@@ -2214,8 +2214,9 @@ def _backend_module_name(name):
     Convert a backend name (either a standard backend -- "Agg", "TkAgg", ... --
     or a custom backend -- "module://...") to the corresponding module name).
     """
-    return (name[9:] if name.startswith("module://")
-            else f"matplotlib.backends.backend_{name.lower()}")
+    if name.startswith("module://"):
+        return name[9:]
+    return "matplotlib.backends.backend_" + name.lower()
 
 
 def _setup_new_guiapp():
