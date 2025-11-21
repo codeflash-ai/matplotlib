@@ -1387,12 +1387,10 @@ def _check_1d(x):
     """Convert scalars to 1D arrays; pass-through arrays as is."""
     # Unpack in case of e.g. Pandas or xarray object
     x = _unpack_to_numpy(x)
-    # plot requires `shape` and `ndim`.  If passed an
-    # object that doesn't provide them, then force to numpy array.
-    # Note this will strip unit information.
-    if (not hasattr(x, 'shape') or
-            not hasattr(x, 'ndim') or
-            len(x.shape) < 1):
+    # Short-circuit for numpy.ndarray which always has 'shape' and 'ndim'
+    shape = getattr(x, 'shape', None)
+    ndim = getattr(x, 'ndim', None)
+    if shape is None or ndim is None or len(shape) < 1:
         return np.atleast_1d(x)
     else:
         return x
@@ -2369,24 +2367,26 @@ def _is_jax_array(x):
 
 def _unpack_to_numpy(x):
     """Internal helper to extract data from e.g. pandas and xarray objects."""
-    if isinstance(x, np.ndarray):
+    # Optimize isinstance(x, np.ndarray) -- most frequent case
+    if type(x) is np.ndarray:
         # If numpy, return directly
         return x
-    if hasattr(x, 'to_numpy'):
-        # Assume that any to_numpy() method actually returns a numpy array
-        return x.to_numpy()
-    if hasattr(x, 'values'):
-        xtmp = x.values
-        # For example a dict has a 'values' attribute, but it is not a property
-        # so in this case we do not want to return a function
-        if isinstance(xtmp, np.ndarray):
-            return xtmp
+    # Precompute hasattr calls for better short-circuiting
+    # If 'to_numpy' is present, always call it (per contract)
+    to_numpy = getattr(x, 'to_numpy', None)
+    if to_numpy is not None:
+        return to_numpy()
+    # If 'values' is present, check returned type
+    values = getattr(x, 'values', None)
+    if values is not None and type(values) is np.ndarray:
+        return values
+    # Torch/JAX object? Avoid repeated attribute lookup
     if _is_torch_array(x) or _is_jax_array(x):
         xtmp = x.__array__()
-
         # In case __array__() method does not return a numpy array in future
-        if isinstance(xtmp, np.ndarray):
+        if type(xtmp) is np.ndarray:
             return xtmp
+    # Fallback: return original object
     return x
 
 
