@@ -31,6 +31,14 @@ except ImportError:
 import matplotlib
 from matplotlib import _api, _c_internal_utils
 
+_torch_module = sys.modules.get('torch')
+
+_jax_module = sys.modules.get('jax')
+
+_TorchTensor = getattr(_torch_module, 'Tensor', None) if _torch_module else None
+
+_JaxArray = getattr(_jax_module, 'Array', None) if _jax_module else None
+
 
 def _get_running_interactive_framework():
     """
@@ -2345,6 +2353,10 @@ def _picklable_class_constructor(mixin_class, fmt, attr_name, base_class):
 
 def _is_torch_array(x):
     """Check if 'x' is a PyTorch Tensor."""
+    # Directly check cached type for fast path; fallback to original slow path if needed
+    if _TorchTensor is not None:
+        return isinstance(x, _TorchTensor)
+    # If not yet loaded or changed, fall back to slow dynamic lookup
     try:
         # we're intentionally not attempting to import torch. If somebody
         # has created a torch array, torch should already be in sys.modules
@@ -2357,6 +2369,8 @@ def _is_torch_array(x):
 
 def _is_jax_array(x):
     """Check if 'x' is a JAX Array."""
+    if _JaxArray is not None:
+        return isinstance(x, _JaxArray)
     try:
         # we're intentionally not attempting to import jax. If somebody
         # has created a jax array, jax should already be in sys.modules
@@ -2372,16 +2386,18 @@ def _unpack_to_numpy(x):
     if isinstance(x, np.ndarray):
         # If numpy, return directly
         return x
-    if hasattr(x, 'to_numpy'):
-        # Assume that any to_numpy() method actually returns a numpy array
-        return x.to_numpy()
-    if hasattr(x, 'values'):
-        xtmp = x.values
-        # For example a dict has a 'values' attribute, but it is not a property
-        # so in this case we do not want to return a function
-        if isinstance(xtmp, np.ndarray):
-            return xtmp
-    if _is_torch_array(x) or _is_jax_array(x):
+    # Prefer to_numpy, usually available on modern pandas/xarray/DataFrame
+    to_numpy = getattr(x, 'to_numpy', None)
+    if to_numpy is not None:
+        return to_numpy()
+    # Rely on direct attribute lookup for values, avoid repeated getattr
+    xtmp = getattr(x, 'values', None)
+    if isinstance(xtmp, np.ndarray):
+        return xtmp
+    # Directly branch with cached Torch/JAX types; short-circuit faster
+    if (_TorchTensor is not None and isinstance(x, _TorchTensor)) or \
+       (_JaxArray is not None and isinstance(x, _JaxArray)) or \
+       _is_torch_array(x) or _is_jax_array(x):
         xtmp = x.__array__()
 
         # In case __array__() method does not return a numpy array in future
