@@ -716,8 +716,13 @@ class _Stack:
 
         Discard all later elements.
         """
-        self._elements[self._pos + 1:] = [o]
-        self._pos = len(self._elements) - 1
+        pos_next = self._pos + 1
+        if pos_next == len(self._elements):
+            self._elements.append(o)
+        else:
+            self._elements[pos_next] = o
+            del self._elements[pos_next + 1:]
+        self._pos = pos_next
         return o
 
     def home(self):
