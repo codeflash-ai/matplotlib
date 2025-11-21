@@ -281,10 +281,21 @@ class Path:
         Return a deepcopy of the `Path`.  The `Path` will not be
         readonly, even if the source `Path` is.
         """
-        # Deepcopying arrays (vertices, codes) strips the writeable=False flag.
-        p = copy.deepcopy(super(), memo)
-        p._readonly = False
-        return p
+        # Fast-path: manually copy "leaves" instead of full super() deepcopy (significant speedup)
+        cls = self.__class__
+        # Copy vertices and codes (which are numpy arrays)
+        _vertices = self._vertices.copy()
+        _codes = self._codes.copy() if self._codes is not None else None
+        # Create new instance without triggering parent's __init__
+        result = cls.__new__(cls)
+        # Set attributes directly
+        result._vertices = _vertices
+        result._codes = _codes
+        result._interpolation_steps = self._interpolation_steps
+        # Defensive: update derived values (method from parent class)
+        result._update_values()
+        result._readonly = False
+        return result
 
     deepcopy = __deepcopy__
 
