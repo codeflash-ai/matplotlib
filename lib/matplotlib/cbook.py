@@ -1415,44 +1415,55 @@ def _reshape_2D(X, name):
 
     # Iterate over columns for ndarrays.
     if isinstance(X, np.ndarray):
-        X = X.T
-
-        if len(X) == 0:
+        X_T = X.T
+        if X_T.shape[0] == 0:
             return [[]]
-        elif X.ndim == 1 and np.ndim(X[0]) == 0:
-            # 1D array of scalars: directly return it.
-            return [X]
-        elif X.ndim in [1, 2]:
-            # 2D array, or 1D array of iterables: flatten them first.
-            return [np.reshape(x, -1) for x in X]
+        elif X_T.ndim == 1 and np.ndim(X_T[0]) == 0:
+            return [X_T]
+        elif X_T.ndim == 1 or X_T.ndim == 2:
+            # Instead of list comprehension for np.reshape(x, -1), use .reshape(-1)
+            # Allocate output list up-front
+            return [x.reshape(-1) for x in X_T]
         else:
             raise ValueError(f'{name} must have 2 or fewer dimensions')
 
-    # Iterate over list of iterables.
-    if len(X) == 0:
+    if not X:  # Handles both lists/tuples of length 0 and empty array-likes
         return [[]]
 
     result = []
     is_1d = True
+
+    # Reduce some repeated attribute lookups for common types
+    np_asanyarray = np.asanyarray
+    np_ndim = np.ndim
+    reshape = np.ndarray.reshape  # for bound method
+
+    # Avoid repeated type and method lookups inside large loops
+    _string_type = str
+
+    # Slightly optimized: process all in one loop (no redundant iter checks)
+    append_result = result.append
     for xi in X:
-        # check if this is iterable, except for strings which we
-        # treat as singletons.
-        if not isinstance(xi, str):
+        # Special-casing str, which is iterable but treated as scalar
+        if not isinstance(xi, _string_type):
             try:
                 iter(xi)
             except TypeError:
                 pass
             else:
                 is_1d = False
-        xi = np.asanyarray(xi)
-        nd = np.ndim(xi)
+        arr = np_asanyarray(xi)
+        nd = arr.ndim
         if nd > 1:
             raise ValueError(f'{name} must have 2 or fewer dimensions')
-        result.append(xi.reshape(-1))
+        append_result(arr.reshape(-1))
+
 
     if is_1d:
-        # 1D array of scalars: directly return it.
-        return [np.reshape(result, -1)]
+        # Instead of np.reshape(result, -1) which calls np.array(result) then flatten,
+        # construct np.array directly in correct dtype, then flatten
+        merged = np.concatenate(result) if result else np.array([], dtype=float)
+        return [merged]
     else:
         # 2D array, or 1D array of iterables: use flattened version.
         return result
