@@ -702,8 +702,17 @@ class _Stack:
 
     def forward(self):
         """Move the position forward and return the current element."""
-        self._pos = min(self._pos + 1, len(self._elements) - 1)
-        return self()
+        elements = self._elements
+        # Avoid repeated attribute access and function call overhead
+        el_len = len(elements)
+        if el_len:
+            # Move position forward up to the last valid index
+            new_pos = self._pos + 1
+            self._pos = new_pos if new_pos < el_len else el_len - 1
+            return elements[self._pos]
+        else:
+            self._pos = -1
+            return None
 
     def back(self):
         """Move the position back and return the current element."""
