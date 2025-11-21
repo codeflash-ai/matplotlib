@@ -2302,16 +2302,15 @@ def _make_getset_interval(method_name, lim_name, attr_name):
 
     def setter(self, vmin, vmax, ignore=False):
         # docstring inherited.
+        lim_obj = getattr(self.axes, lim_name)
         if ignore:
-            setattr(getattr(self.axes, lim_name), attr_name, (vmin, vmax))
+            setattr(lim_obj, attr_name, (vmin, vmax))
         else:
-            oldmin, oldmax = getter(self)
+            oldmin, oldmax = getattr(lim_obj, attr_name)
             if oldmin < oldmax:
-                setter(self, min(vmin, vmax, oldmin), max(vmin, vmax, oldmax),
-                       ignore=True)
+                setattr(lim_obj, attr_name, (min(vmin, vmax, oldmin), max(vmin, vmax, oldmax)))
             else:
-                setter(self, max(vmin, vmax, oldmin), min(vmin, vmax, oldmax),
-                       ignore=True)
+                setattr(lim_obj, attr_name, (max(vmin, vmax, oldmin), min(vmin, vmax, oldmax)))
         self.stale = True
 
     getter.__name__ = f"get_{method_name}_interval"
