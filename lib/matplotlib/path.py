@@ -779,13 +779,29 @@ class Path:
             path = None
         if path is None:
             ns2 = numVertices * 2
-            theta = (2*np.pi/ns2 * np.arange(ns2 + 1))
+            # Precompute common factors and use in-place operations to minimize memory usage.
+            step = 2 * np.pi / ns2
+
+            # Efficiently compute theta values.
+            # np.arange(ns2+1) * step is faster and saves memory over (2*np.pi/ns2 * np.arange(ns2+1))
+            theta = np.arange(ns2 + 1, dtype=np.float64)
+            theta *= step
             # This initial rotation is to make sure the polygon always
             # "points-up"
             theta += np.pi / 2.0
-            r = np.ones(ns2 + 1)
+
+            # Preallocate radius array and set inner vertices in-place.
+            r = np.ones(ns2 + 1, dtype=np.float64)
             r[1::2] = innerCircle
-            verts = (r * np.vstack((np.cos(theta), np.sin(theta)))).T
+
+            # Use broadcasting for cos/sin calculations. Avoid vstack and transpose by direct stacking.
+            # This approach reduces memory allocation overhead.
+            cos_theta = np.cos(theta)
+            sin_theta = np.sin(theta)
+            verts = np.empty((ns2 + 1, 2), dtype=np.float64)
+            verts[:, 0] = r * cos_theta
+            verts[:, 1] = r * sin_theta
+
             path = cls(verts, closed=True, readonly=True)
             if numVertices <= 16:
                 cls._unit_regular_stars[(numVertices, innerCircle)] = path
