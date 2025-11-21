@@ -31,6 +31,8 @@ except ImportError:
 import matplotlib
 from matplotlib import _api, _c_internal_utils
 
+_base_data_path = None
+
 
 def _get_running_interactive_framework():
     """
@@ -542,7 +544,11 @@ def _get_data_path(*args):
 
     ``*args`` specify a path relative to the base data path.
     """
-    return Path(matplotlib.get_data_path(), *args)
+    global _base_data_path
+    if _base_data_path is None:
+        # get_data_path() returns a string; Path() conversion is fast, just once
+        _base_data_path = Path(matplotlib.get_data_path())
+    return _base_data_path.joinpath(*args)
 
 
 def flatten(seq, scalarp=is_scalar_or_string):
