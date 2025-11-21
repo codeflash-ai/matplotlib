@@ -980,7 +980,7 @@ class AnchoredOffsetbox(OffsetBox):
         # docstring inherited
         fontsize = renderer.points_to_pixels(self.prop.get_size_in_points())
         pad = self.pad * fontsize
-        return self.get_child().get_bbox(renderer).padded(pad)
+        return self._child.get_bbox(renderer).padded(pad)
 
     def get_bbox_to_anchor(self):
         """Return the bbox that the box is anchored to."""
