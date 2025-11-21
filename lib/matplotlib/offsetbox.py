@@ -700,13 +700,17 @@ class TextArea(OffsetBox):
         """
         if textprops is None:
             textprops = {}
-        self._text = mtext.Text(0, 0, s, **textprops)
+        # Instantiate Text and transforms only once per constructor call
+        text = mtext.Text(0, 0, s, **textprops)
+        offset_transform = mtransforms.Affine2D()
+        baseline_transform = mtransforms.Affine2D()
+        # Call OffsetBox constructor before assigning new attributes for safety and efficiency
         super().__init__()
+        self._text = text
         self._children = [self._text]
-        self.offset_transform = mtransforms.Affine2D()
-        self._baseline_transform = mtransforms.Affine2D()
-        self._text.set_transform(self.offset_transform +
-                                 self._baseline_transform)
+        self.offset_transform = offset_transform
+        self._baseline_transform = baseline_transform
+        self._text.set_transform(self.offset_transform + self._baseline_transform)
         self._multilinebaseline = multilinebaseline
 
     def set_text(self, s):
