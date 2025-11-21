@@ -3,7 +3,7 @@
 from matplotlib import cbook, units
 import matplotlib.dates as date_ticker
 
-__all__ = ['EpochConverter']
+__all__ = ["EpochConverter"]
 
 
 class EpochConverter(units.ConversionInterface):
@@ -17,8 +17,11 @@ class EpochConverter(units.ConversionInterface):
     @staticmethod
     def axisinfo(unit, axis):
         # docstring inherited
-        majloc = date_ticker.AutoDateLocator()
-        majfmt = date_ticker.AutoDateFormatter(majloc)
+        # Avoid repeated attribute lookup
+        AutoDateLocator = date_ticker.AutoDateLocator
+        AutoDateFormatter = date_ticker.AutoDateFormatter
+        majloc = AutoDateLocator()
+        majfmt = AutoDateFormatter(majloc)
         return units.AxisInfo(majloc=majloc, majfmt=majfmt, label=unit)
 
     @staticmethod
@@ -37,7 +40,7 @@ class EpochConverter(units.ConversionInterface):
         # Delay-load due to circular dependencies.
         import matplotlib.testing.jpl_units as U
 
-        secPastRef = value * 86400.0 * U.UnitDbl(1.0, 'sec')
+        secPastRef = value * 86400.0 * U.UnitDbl(1.0, "sec")
         return U.Epoch(unit, secPastRef, EpochConverter.jdRef)
 
     @staticmethod
