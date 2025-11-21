@@ -811,11 +811,18 @@ class GaussianKDE:
     # from scipy: https://github.com/scipy/scipy/blob/master/scipy/stats/kde.py
 
     def __init__(self, dataset, bw_method=None):
-        self.dataset = np.atleast_2d(dataset)
-        if not np.array(self.dataset).size > 1:
+        # Avoid multiple conversions to np.array - store as at least 2d array
+        dataset = np.atleast_2d(dataset)
+        self.dataset = dataset  # retain original code's assignment
+
+        # Use dataset directly instead of repeated np.array(self.dataset)
+        if not dataset.size > 1:
             raise ValueError("`dataset` input should have multiple elements.")
 
-        self.dim, self.num_dp = np.array(self.dataset).shape
+        # Get dim and num_dp from dataset.shape directly
+        self.dim, self.num_dp = dataset.shape
+
+        # Optimize bw_method logic flow
 
         if bw_method is None:
             pass
@@ -836,20 +843,30 @@ class GaussianKDE:
         # Computes the covariance matrix for each Gaussian kernel using
         # covariance_factor().
 
-        self.factor = self.covariance_factor()
-        # Cache covariance and inverse covariance of the data
+
+        # Compute covariance matrix and its inverse once, efficiently
+        # Use bias=False, rowvar=1 (default), just like original
         if not hasattr(self, '_data_inv_cov'):
-            self.data_covariance = np.atleast_2d(
-                np.cov(
-                    self.dataset,
-                    rowvar=1,
-                    bias=False))
+            # np.cov returns a view if already 2D array, no need to convert again
+            data_covariance = np.cov(dataset, rowvar=1, bias=False)
+            # Use at least_2d to ensure shape is correct if univariate
+            self.data_covariance = np.atleast_2d(data_covariance)
+            # np.linalg.inv accepts 1x1 or 2D array; compute once
             self.data_inv_cov = np.linalg.inv(self.data_covariance)
 
-        self.covariance = self.data_covariance * self.factor ** 2
-        self.inv_cov = self.data_inv_cov / self.factor ** 2
-        self.norm_factor = (np.sqrt(np.linalg.det(2 * np.pi * self.covariance))
-                            * self.num_dp)
+        # Compute bandwidth factor only after the above
+        self.factor = self.covariance_factor()
+
+        # These might be more efficiently computed from pre-stored objects
+        factor2 = self.factor ** 2
+        self.covariance = self.data_covariance * factor2
+        self.inv_cov = self.data_inv_cov / factor2
+
+        # Precompute (2*pi)^d only once, and use .det directly
+        pi_term = (2 * np.pi) ** self.dim
+        # The covariance is always square and positive-definite, so det is safe
+        det_cov = np.linalg.det(self.covariance)
+        self.norm_factor = (np.sqrt(pi_term * det_cov) * self.num_dp)
 
     def scotts_factor(self):
         return np.power(self.num_dp, -1. / (self.dim + 4))
