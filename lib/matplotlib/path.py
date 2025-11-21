@@ -774,21 +774,37 @@ class Path:
         numVertices and radius of 1.0, centered at (0, 0).
         """
         if numVertices <= 16:
-            path = cls._unit_regular_stars.get((numVertices, innerCircle))
+            cache = cls._unit_regular_stars
+            key = (numVertices, innerCircle)
+            path = cache.get(key)
         else:
             path = None
         if path is None:
             ns2 = numVertices * 2
-            theta = (2*np.pi/ns2 * np.arange(ns2 + 1))
+            # Allocate once; use out and casting for cos/sin
+            theta = np.empty(ns2 + 1, dtype=float)
+            np.multiply(2 * np.pi / ns2, np.arange(ns2 + 1), out=theta)
             # This initial rotation is to make sure the polygon always
             # "points-up"
             theta += np.pi / 2.0
-            r = np.ones(ns2 + 1)
-            r[1::2] = innerCircle
-            verts = (r * np.vstack((np.cos(theta), np.sin(theta)))).T
+
+            # Build r vector using slicing efficiently
+            r = np.ones(ns2 + 1, dtype=float)
+            if innerCircle != 1.0:
+                r[1::2] = innerCircle
+
+            # Use out parameter for cos/sin, avoid vstack
+            c = np.empty(ns2 + 1, dtype=float)
+            s = np.empty(ns2 + 1, dtype=float)
+            np.cos(theta, out=c)
+            np.sin(theta, out=s)
+            verts = np.empty((ns2 + 1, 2), dtype=float)
+            verts[:, 0] = r * c
+            verts[:, 1] = r * s
+
             path = cls(verts, closed=True, readonly=True)
             if numVertices <= 16:
-                cls._unit_regular_stars[(numVertices, innerCircle)] = path
+                cache[key] = path
         return path
 
     @classmethod
