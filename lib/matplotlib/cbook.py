@@ -707,8 +707,12 @@ class _Stack:
 
     def back(self):
         """Move the position back and return the current element."""
-        self._pos = max(self._pos - 1, 0)
-        return self()
+        # Avoid unnecessary attribute lookup by storing in a local variable
+        pos = self._pos - 1
+        self._pos = pos if pos >= 0 else 0
+        # Inline the __call__ functionality:
+        elements = self._elements
+        return elements[self._pos] if elements else None
 
     def push(self, o):
         """
