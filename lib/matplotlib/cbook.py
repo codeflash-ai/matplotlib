@@ -469,31 +469,30 @@ def to_filehandle(fname, flag='r', return_opened=False, encoding=None):
     opened : bool
         *opened* is only returned if *return_opened* is True.
     """
-    if isinstance(fname, os.PathLike):
-        fname = os.fspath(fname)
-    if isinstance(fname, str):
-        if fname.endswith('.gz'):
-            fh = gzip.open(fname, flag)
-        elif fname.endswith('.bz2'):
-            # python may not be compiled with bz2 support,
-            # bury import until we need it
-            import bz2
-            fh = bz2.BZ2File(fname, flag)
-        else:
-            fh = open(fname, flag, encoding=encoding)
-        opened = True
-    elif hasattr(fname, 'seek'):
+    if hasattr(fname, 'seek'):
         fh = fname
         opened = False
     else:
-        raise ValueError('fname must be a PathLike or file handle')
+        if isinstance(fname, os.PathLike):
+            fname = os.fspath(fname)
+        if isinstance(fname, str):
+            if fname.endswith('.gz'):
+                fh = gzip.open(fname, flag)
+            elif fname.endswith('.bz2'):
+                import bz2
+                fh = bz2.BZ2File(fname, flag)
+            else:
+                fh = open(fname, flag, encoding=encoding)
+            opened = True
+        else:
+            raise ValueError('fname must be a PathLike or file handle')
     if return_opened:
         return fh, opened
     return fh
 
 
 def open_file_cm(path_or_file, mode="r", encoding=None):
-    r"""Pass through file objects and context-manage path-likes."""
+    """Pass through file objects and context-manage path-likes."""
     fh, opened = to_filehandle(path_or_file, mode, True, encoding)
     return fh if opened else contextlib.nullcontext(fh)
 
