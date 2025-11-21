@@ -836,49 +836,45 @@ class Path:
           Bezier Cubic Splines <https://www.tinaja.com/glib/ellipse4.pdf>`_.
         """
         MAGIC = 0.2652031
-        SQRTHALF = np.sqrt(0.5)
+        SQRTHALF = 0.7071067811865476  # np.sqrt(0.5) precomputed
         MAGIC45 = SQRTHALF * MAGIC
 
-        vertices = np.array([[0.0, -1.0],
+        # Use np.array with input as list-of-lists and dtype, no change needed
+        vertices = np.array([
+            [0.0, -1.0],
+            [MAGIC, -1.0],
+            [SQRTHALF-MAGIC45, -SQRTHALF-MAGIC45],
+            [SQRTHALF, -SQRTHALF],
+            [SQRTHALF+MAGIC45, -SQRTHALF+MAGIC45],
+            [1.0, -MAGIC],
+            [1.0, 0.0],
+            [1.0, MAGIC],
+            [SQRTHALF+MAGIC45, SQRTHALF-MAGIC45],
+            [SQRTHALF, SQRTHALF],
+            [SQRTHALF-MAGIC45, SQRTHALF+MAGIC45],
+            [MAGIC, 1.0],
+            [0.0, 1.0],
+            [-MAGIC, 1.0],
+            [-SQRTHALF+MAGIC45, SQRTHALF+MAGIC45],
+            [-SQRTHALF, SQRTHALF],
+            [-SQRTHALF-MAGIC45, SQRTHALF-MAGIC45],
+            [-1.0, MAGIC],
+            [-1.0, 0.0],
+            [-1.0, -MAGIC],
+            [-SQRTHALF-MAGIC45, -SQRTHALF+MAGIC45],
+            [-SQRTHALF, -SQRTHALF],
+            [-SQRTHALF+MAGIC45, -SQRTHALF-MAGIC45],
+            [-MAGIC, -1.0],
+            [0.0, -1.0],
+            [0.0, -1.0]
+        ], dtype=float)
 
-                             [MAGIC, -1.0],
-                             [SQRTHALF-MAGIC45, -SQRTHALF-MAGIC45],
-                             [SQRTHALF, -SQRTHALF],
-
-                             [SQRTHALF+MAGIC45, -SQRTHALF+MAGIC45],
-                             [1.0, -MAGIC],
-                             [1.0, 0.0],
-
-                             [1.0, MAGIC],
-                             [SQRTHALF+MAGIC45, SQRTHALF-MAGIC45],
-                             [SQRTHALF, SQRTHALF],
-
-                             [SQRTHALF-MAGIC45, SQRTHALF+MAGIC45],
-                             [MAGIC, 1.0],
-                             [0.0, 1.0],
-
-                             [-MAGIC, 1.0],
-                             [-SQRTHALF+MAGIC45, SQRTHALF+MAGIC45],
-                             [-SQRTHALF, SQRTHALF],
-
-                             [-SQRTHALF-MAGIC45, SQRTHALF-MAGIC45],
-                             [-1.0, MAGIC],
-                             [-1.0, 0.0],
-
-                             [-1.0, -MAGIC],
-                             [-SQRTHALF-MAGIC45, -SQRTHALF+MAGIC45],
-                             [-SQRTHALF, -SQRTHALF],
-
-                             [-SQRTHALF+MAGIC45, -SQRTHALF-MAGIC45],
-                             [-MAGIC, -1.0],
-                             [0.0, -1.0],
-
-                             [0.0, -1.0]],
-                            dtype=float)
-
-        codes = [cls.CURVE4] * 26
+        # Use np.full and direct assignment for codes array
+        codes = np.full(vertices.shape[0], cls.CURVE4, dtype=cls.code_type)
         codes[0] = cls.MOVETO
         codes[-1] = cls.CLOSEPOLY
+
+        # Use numpy broadcasting for vertices transform (no change - already optimal)
         return Path(vertices * radius + center, codes, readonly=readonly)
 
     _unit_circle_righthalf = None
