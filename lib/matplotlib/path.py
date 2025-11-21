@@ -945,62 +945,90 @@ class Path:
         """
         halfpi = np.pi * 0.5
 
-        eta1 = theta1
-        eta2 = theta2 - 360 * np.floor((theta2 - theta1) / 360)
+        # Fast float arithmetic
+        eta1 = float(theta1)
+        eta2 = float(theta2) - 360.0 * np.floor((float(theta2) - float(theta1)) / 360.0)
         # Ensure 2pi range is not flattened to 0 due to floating-point errors,
         # but don't try to expand existing 0 range.
         if theta2 != theta1 and eta2 <= eta1:
-            eta2 += 360
-        eta1, eta2 = np.deg2rad([eta1, eta2])
+            eta2 += 360.0
+        eta1_rad = np.deg2rad(eta1)
+        eta2_rad = np.deg2rad(eta2)
+
+        # Optimize case where n is not supplied, reduce pow(2, ...)
 
         # number of curve segments to make
         if n is None:
-            n = int(2 ** np.ceil((eta2 - eta1) / halfpi))
+            n_segments = (eta2_rad - eta1_rad) / halfpi
+            n = int(2 ** np.ceil(n_segments))
         if n < 1:
             raise ValueError("n must be >= 1 or None")
 
-        deta = (eta2 - eta1) / n
-        t = np.tan(0.5 * deta)
-        alpha = np.sin(deta) * (np.sqrt(4.0 + 3.0 * t * t) - 1) / 3.0
+        # Precompute reused quantities
+        deta = (eta2_rad - eta1_rad) / n
+        half_deta = 0.5 * deta
+        t = np.tan(half_deta)
+        tt = t * t
+        sqrt_val = np.sqrt(4.0 + 3.0 * tt)
+        sin_deta = np.sin(deta)
+        alpha = sin_deta * (sqrt_val - 1.0) / 3.0
 
-        steps = np.linspace(eta1, eta2, n + 1, True)
-        cos_eta = np.cos(steps)
-        sin_eta = np.sin(steps)
+        # More efficient creation of steps and trig vectors
+        steps = np.linspace(eta1_rad, eta2_rad, n + 1, endpoint=True)
+        cos_steps = np.cos(steps)
+        sin_steps = np.sin(steps)
 
-        xA = cos_eta[:-1]
-        yA = sin_eta[:-1]
-        xA_dot = -yA
+        # For large n this saves intermediate arrays
+        xA = cos_steps[:-1]
+        yA = sin_steps[:-1]
+        yA_neg = -yA
+        xA_dot = yA_neg
         yA_dot = xA
 
-        xB = cos_eta[1:]
-        yB = sin_eta[1:]
-        xB_dot = -yB
+        xB = cos_steps[1:]
+        yB = sin_steps[1:]
+        yB_neg = -yB
+        xB_dot = yB_neg
         yB_dot = xB
 
         if is_wedge:
             length = n * 3 + 4
             vertices = np.zeros((length, 2), float)
-            codes = np.full(length, cls.CURVE4, dtype=cls.code_type)
-            vertices[1] = [xA[0], yA[0]]
-            codes[0:2] = [cls.MOVETO, cls.LINETO]
-            codes[-2:] = [cls.LINETO, cls.CLOSEPOLY]
+            codes = np.empty(length, dtype=cls.code_type)
+            codes[:] = cls.CURVE4
+            vertices[1, 0] = xA[0]
+            vertices[1, 1] = yA[0]
+            # Set codes efficiently
+            codes[0] = cls.MOVETO
+            codes[1] = cls.LINETO
+            codes[-2] = cls.LINETO
+            codes[-1] = cls.CLOSEPOLY
             vertex_offset = 2
             end = length - 2
         else:
             length = n * 3 + 1
             vertices = np.empty((length, 2), float)
-            codes = np.full(length, cls.CURVE4, dtype=cls.code_type)
-            vertices[0] = [xA[0], yA[0]]
+            codes = np.empty(length, dtype=cls.code_type)
+            codes[:] = cls.CURVE4
+            vertices[0, 0] = xA[0]
+            vertices[0, 1] = yA[0]
             codes[0] = cls.MOVETO
             vertex_offset = 1
             end = length
 
-        vertices[vertex_offset:end:3, 0] = xA + alpha * xA_dot
-        vertices[vertex_offset:end:3, 1] = yA + alpha * yA_dot
-        vertices[vertex_offset+1:end:3, 0] = xB - alpha * xB_dot
-        vertices[vertex_offset+1:end:3, 1] = yB - alpha * yB_dot
-        vertices[vertex_offset+2:end:3, 0] = xB
-        vertices[vertex_offset+2:end:3, 1] = yB
+        # Compute slices only once
+        idx0 = slice(vertex_offset, end, 3)
+        idx1 = slice(vertex_offset+1, end, 3)
+        idx2 = slice(vertex_offset+2, end, 3)
+
+        # Use in-place operations
+        _alpha = alpha  # Avoid attribute lookups inside compute
+        np.add(xA, _alpha * xA_dot, out=vertices[idx0, 0])
+        np.add(yA, _alpha * yA_dot, out=vertices[idx0, 1])
+        np.subtract(xB, _alpha * xB_dot, out=vertices[idx1, 0])
+        np.subtract(yB, _alpha * yB_dot, out=vertices[idx1, 1])
+        vertices[idx2, 0] = xB
+        vertices[idx2, 1] = yB
 
         return cls(vertices, codes, readonly=True)
 
