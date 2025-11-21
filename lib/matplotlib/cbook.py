@@ -1378,7 +1378,7 @@ def _to_unmasked_float_array(x):
     values are converted to nans.
     """
     if hasattr(x, 'mask'):
-        return np.ma.asarray(x, float).filled(np.nan)
+        return np.ma.filled(np.asarray(x, float), np.nan)
     else:
         return np.asarray(x, float)
 
