@@ -31,6 +31,18 @@ except ImportError:
 import matplotlib
 from matplotlib import _api, _c_internal_utils
 
+_KEYSYM_REMAP = {
+    "return": "enter",
+    "prior": "pageup",  # Used by tk.
+    "next": "pagedown",  # Used by tk.
+}
+
+_KP_PREFIX = "kp_"
+
+_PAGE_PREFIX = "page_"
+
+_ENDINGS = ("_l", "_r")
+
 
 def _get_running_interactive_framework():
     """
@@ -2272,20 +2284,16 @@ def _unikey_or_keysym_to_mplkey(unikey, keysym):
     if unikey and unikey.isprintable():
         return unikey
     key = keysym.lower()
-    if key.startswith("kp_"):  # keypad_x (including kp_enter).
+    if key.startswith(_KP_PREFIX):  # keypad_x (including kp_enter).
         key = key[3:]
-    if key.startswith("page_"):  # page_{up,down}
-        key = key.replace("page_", "page")
-    if key.endswith(("_l", "_r")):  # alt_l, ctrl_l, shift_l.
+    if key.startswith(_PAGE_PREFIX):  # page_{up,down}
+        key = "page" + key[len(_PAGE_PREFIX):]
+    if key.endswith(_ENDINGS):  # alt_l, ctrl_l, shift_l.
         key = key[:-2]
     if sys.platform == "darwin" and key == "meta":
         # meta should be reported as command on mac
         key = "cmd"
-    key = {
-        "return": "enter",
-        "prior": "pageup",  # Used by tk.
-        "next": "pagedown",  # Used by tk.
-    }.get(key, key)
+    key = _KEYSYM_REMAP.get(key, key)
     return key
 
 
