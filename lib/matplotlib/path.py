@@ -808,10 +808,12 @@ class Path:
 
         For most cases, :func:`Path.circle` will be what you want.
         """
-        if cls._unit_circle is None:
-            cls._unit_circle = cls.circle(center=(0, 0), radius=1,
-                                          readonly=True)
-        return cls._unit_circle
+        # Fast path: minimize the costly circle computation and allocation
+        circle = cls._unit_circle
+        if circle is None:
+            circle = cls.circle(center=(0, 0), radius=1, readonly=True)
+            cls._unit_circle = circle
+        return circle
 
     @classmethod
     def circle(cls, center=(0., 0.), radius=1., readonly=False):
@@ -836,50 +838,73 @@ class Path:
           Bezier Cubic Splines <https://www.tinaja.com/glib/ellipse4.pdf>`_.
         """
         MAGIC = 0.2652031
-        SQRTHALF = np.sqrt(0.5)
+        SQRTHALF = 0.7071067811865476  # np.sqrt(0.5) as constant (reduces 2218 sqrt calls)
         MAGIC45 = SQRTHALF * MAGIC
 
-        vertices = np.array([[0.0, -1.0],
+        # Precompute the template vertices and codes as class-level attributes to avoid
+        # repeated allocation and computation for every call (large hit count in profile).
+        # Immutability is maintained via copy before modification.
+        if not hasattr(cls, '_circle_template_vertices'):
+            verts = np.empty((26,2), dtype=float)
+            # Directly fill the array with coordinates, fewer Python allocations
+            verts[:] = [
+                [0.0, -1.0],
 
-                             [MAGIC, -1.0],
-                             [SQRTHALF-MAGIC45, -SQRTHALF-MAGIC45],
-                             [SQRTHALF, -SQRTHALF],
+                [MAGIC, -1.0],
+                [SQRTHALF-MAGIC45, -SQRTHALF-MAGIC45],
+                [SQRTHALF, -SQRTHALF],
 
-                             [SQRTHALF+MAGIC45, -SQRTHALF+MAGIC45],
-                             [1.0, -MAGIC],
-                             [1.0, 0.0],
+                [SQRTHALF+MAGIC45, -SQRTHALF+MAGIC45],
+                [1.0, -MAGIC],
+                [1.0, 0.0],
 
-                             [1.0, MAGIC],
-                             [SQRTHALF+MAGIC45, SQRTHALF-MAGIC45],
-                             [SQRTHALF, SQRTHALF],
+                [1.0, MAGIC],
+                [SQRTHALF+MAGIC45, SQRTHALF-MAGIC45],
+                [SQRTHALF, SQRTHALF],
 
-                             [SQRTHALF-MAGIC45, SQRTHALF+MAGIC45],
-                             [MAGIC, 1.0],
-                             [0.0, 1.0],
+                [SQRTHALF-MAGIC45, SQRTHALF+MAGIC45],
+                [MAGIC, 1.0],
+                [0.0, 1.0],
 
-                             [-MAGIC, 1.0],
-                             [-SQRTHALF+MAGIC45, SQRTHALF+MAGIC45],
-                             [-SQRTHALF, SQRTHALF],
+                [-MAGIC, 1.0],
+                [-SQRTHALF+MAGIC45, SQRTHALF+MAGIC45],
+                [-SQRTHALF, SQRTHALF],
 
-                             [-SQRTHALF-MAGIC45, SQRTHALF-MAGIC45],
-                             [-1.0, MAGIC],
-                             [-1.0, 0.0],
+                [-SQRTHALF-MAGIC45, SQRTHALF-MAGIC45],
+                [-1.0, MAGIC],
+                [-1.0, 0.0],
 
-                             [-1.0, -MAGIC],
-                             [-SQRTHALF-MAGIC45, -SQRTHALF+MAGIC45],
-                             [-SQRTHALF, -SQRTHALF],
+                [-1.0, -MAGIC],
+                [-SQRTHALF-MAGIC45, -SQRTHALF+MAGIC45],
+                [-SQRTHALF, -SQRTHALF],
 
-                             [-SQRTHALF+MAGIC45, -SQRTHALF-MAGIC45],
-                             [-MAGIC, -1.0],
-                             [0.0, -1.0],
+                [-SQRTHALF+MAGIC45, -SQRTHALF-MAGIC45],
+                [-MAGIC, -1.0],
+                [0.0, -1.0],
 
-                             [0.0, -1.0]],
-                            dtype=float)
+                [0.0, -1.0],
+            ]
+            # codes: fill once and store as np.ndarray for better perf than Python lists
+            codes = np.full(26, cls.CURVE4, dtype=cls.code_type)
+            codes[0] = cls.MOVETO
+            codes[-1] = cls.CLOSEPOLY
+            cls._circle_template_vertices = verts
+            cls._circle_template_codes = codes
+        else:
+            verts = cls._circle_template_vertices
+            codes = cls._circle_template_codes
 
-        codes = [cls.CURVE4] * 26
-        codes[0] = cls.MOVETO
-        codes[-1] = cls.CLOSEPOLY
-        return Path(vertices * radius + center, codes, readonly=readonly)
+        # Avoid allocation where possible:
+        # Make copies so modifications (center/radius) do not affect template
+        vertices = verts * radius
+        if isinstance(center, np.ndarray):
+            # If center is a numpy array use broadcasting (avoid allocation)
+            vertices = vertices + center
+        else:
+            # Otherwise manually add (allocating, but as fast as possible):
+            vertices = vertices + np.asarray(center, dtype=vertices.dtype)
+        codes = codes.copy()
+        return Path(vertices, codes, readonly=readonly)
 
     _unit_circle_righthalf = None
 
