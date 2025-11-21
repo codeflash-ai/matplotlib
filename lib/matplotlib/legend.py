@@ -1243,22 +1243,33 @@ class Legend(Artist):
 # `axes.legend`:
 def _get_legend_handles(axs, legend_handler_map=None):
     """Yield artists that can be used as handles in a legend."""
+    # Precompute isinstance targets for efficiency
+    legend_types = (Line2D, Patch, Collection, Text)
     handles_original = []
-    for ax in axs:
-        handles_original += [
-            *(a for a in ax._children
-              if isinstance(a, (Line2D, Patch, Collection, Text))),
-            *ax.containers]
-        # support parasite Axes:
-        if hasattr(ax, 'parasites'):
-            for axx in ax.parasites:
-                handles_original += [
-                    *(a for a in axx._children
-                      if isinstance(a, (Line2D, Patch, Collection, Text))),
-                    *axx.containers]
+    append = handles_original.append  # For faster local access
 
-    handler_map = {**Legend.get_default_handler_map(),
-                   **(legend_handler_map or {})}
+    # Collect all handles in a single pass
+    for ax in axs:
+        children = ax._children
+        for a in children:
+            if isinstance(a, legend_types):
+                append(a)
+        handles_original.extend(ax.containers)
+        # support parasite Axes:
+        parasites = getattr(ax, 'parasites', None)
+        if parasites:
+            for axx in parasites:
+                for a in axx._children:
+                    if isinstance(a, legend_types):
+                        append(a)
+                handles_original.extend(axx.containers)
+
+    # Merge legend_handler_map just once
+    if legend_handler_map:
+        handler_map = Legend.get_default_handler_map().copy()
+        handler_map.update(legend_handler_map)
+    else:
+        handler_map = Legend.get_default_handler_map()
     has_handler = Legend.get_legend_handler
     for handle in handles_original:
         label = handle.get_label()
@@ -1267,23 +1278,25 @@ def _get_legend_handles(axs, legend_handler_map=None):
         elif (label and not label.startswith('_') and
                 not has_handler(handler_map, handle)):
             _api.warn_external(
-                             "Legend does not support handles for "
-                             f"{type(handle).__name__} "
-                             "instances.\nSee: https://matplotlib.org/stable/"
-                             "tutorials/intermediate/legend_guide.html"
-                             "#implementing-a-custom-legend-handler")
-            continue
+                "Legend does not support handles for "
+                f"{type(handle).__name__} "
+                "instances.\nSee: https://matplotlib.org/stable/"
+                "tutorials/intermediate/legend_guide.html"
+                "#implementing-a-custom-legend-handler")
+            # No need to continue here; the next iteration is implicit
 
 
 def _get_legend_handles_labels(axs, legend_handler_map=None):
     """Return handles and labels for legend."""
-    handles = []
-    labels = []
+    # List comprehensions for efficiency and clarity
+    handles, labels = [], []
+    append_handle = handles.append
+    append_label = labels.append
     for handle in _get_legend_handles(axs, legend_handler_map):
         label = handle.get_label()
         if label and not label.startswith('_'):
-            handles.append(handle)
-            labels.append(label)
+            append_handle(handle)
+            append_label(label)
     return handles, labels
 
 
