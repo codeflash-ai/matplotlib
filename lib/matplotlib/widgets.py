@@ -134,6 +134,9 @@ class AxesWidget(Widget):
         self.canvas = ax.figure.canvas
         self._cids = []
 
+        # Cache the inverse data transform for efficiency
+        self._inv_transData = ax.transData.inverted()
+
     def connect_event(self, event, callback):
         """
         Connect a callback function with an event.
@@ -156,8 +159,11 @@ class AxesWidget(Widget):
         # be wrong.  Note that we still special-case the common case where
         # event.inaxes == self.ax and avoid re-running the inverse data transform,
         # because that can introduce floating point errors for synthetic events.
-        return ((event.xdata, event.ydata) if event.inaxes is self.ax
-                else self.ax.transData.inverted().transform((event.x, event.y)))
+        if event.inaxes is self.ax:
+            return (event.xdata, event.ydata)
+        else:
+            # Use cached inverse transformation for speed
+            return self._inv_transData.transform((event.x, event.y))
 
 
 class Button(AxesWidget):
