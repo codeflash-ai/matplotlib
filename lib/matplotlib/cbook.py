@@ -432,6 +432,8 @@ def file_requires_unicode(x):
     Return whether the given writable file-like object requires Unicode to be
     written to it.
     """
+    if hasattr(x, 'encoding'):
+        return True
     try:
         x.write(b'')
     except TypeError:
