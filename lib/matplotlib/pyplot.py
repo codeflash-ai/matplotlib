@@ -49,16 +49,13 @@ import sys
 import threading
 import time
 from typing import TYPE_CHECKING, cast, overload
-
-from cycler import cycler  # noqa: F401
 import matplotlib
 import matplotlib.colorbar
 import matplotlib.image
 from matplotlib import _api
 from matplotlib import (  # noqa: F401 Re-exported for typing.
-    cm as cm, get_backend as get_backend, rcParams as rcParams, style as style)
+    cm as cm, get_backend as get_backend, rcParams as rcParams)
 from matplotlib import _pylab_helpers
-from matplotlib import interactive  # noqa: F401
 from matplotlib import cbook
 from matplotlib import _docstring
 from matplotlib.backend_bases import (
@@ -68,16 +65,16 @@ from matplotlib.gridspec import GridSpec, SubplotSpec
 from matplotlib import rcsetup, rcParamsDefault, rcParamsOrig
 from matplotlib.artist import Artist
 from matplotlib.axes import Axes
-from matplotlib.axes import Subplot  # noqa: F401
 from matplotlib.backends import BackendFilter, backend_registry
 from matplotlib.projections import PolarAxes
 from matplotlib import mlab  # for detrend_none, window_hanning
-from matplotlib.scale import get_scale_names  # noqa: F401
 
 from matplotlib.cm import _colormaps
 from matplotlib.colors import _color_sequences, Colormap
 
 import numpy as np
+import PIL.Image
+import matplotlib.backends
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Iterable, Sequence
@@ -129,15 +126,7 @@ if TYPE_CHECKING:
 from matplotlib.colors import Normalize
 from matplotlib.lines import Line2D, AxLine
 from matplotlib.text import Text, Annotation
-from matplotlib.patches import Arrow, Circle, Rectangle  # noqa: F401
 from matplotlib.patches import Polygon
-from matplotlib.widgets import Button, Slider, Widget  # noqa: F401
-
-from .ticker import (  # noqa: F401
-    TickHelper, Formatter, FixedFormatter, NullFormatter, FuncFormatter,
-    FormatStrFormatter, ScalarFormatter, LogFormatter, LogFormatterExponent,
-    LogFormatterMathtext, Locator, IndexLocator, FixedLocator, NullLocator,
-    LinearLocator, LogLocator, AutoLocator, MultipleLocator, MaxNLocator)
 
 _log = logging.getLogger(__name__)
 
@@ -2384,13 +2373,25 @@ def _get_pyplot_commands() -> list[str]:
     # This works by searching for all functions in this module and removing
     # a few hard-coded exclusions, as well as all of the colormap-setting
     # functions, and anything marked as private with a preceding underscore.
-    exclude = {'colormaps', 'colors', 'get_plot_commands', *colormaps}
+    # Precompute the exclude set only once
+    exclude = {'colormaps', 'colors', 'get_plot_commands'}
+    exclude.update(colormaps)
     this_module = inspect.getmodule(get_plot_commands)
+    # Store globals dict locally for faster lookup
+    gbl = globals()
+    # Cache inspect.isfunction to local to avoid attribute lookup
+    isfunction = inspect.isfunction
+    getmodule = inspect.getmodule
+    # Use tuple unpack in generator for slight speed
+    items = gbl.items()
+    # Avoid repeated filter checks by collapsing booleans
     return sorted(
-        name for name, obj in globals().items()
-        if not name.startswith('_') and name not in exclude
-           and inspect.isfunction(obj)
-           and inspect.getmodule(obj) is this_module)
+        name for name, obj in items
+        if not name.startswith('_')
+           and name not in exclude
+           and isfunction(obj)
+           and getmodule(obj) is this_module
+    )
 
 
 ## Plotting part 1: manually generated functions and wrappers ##
