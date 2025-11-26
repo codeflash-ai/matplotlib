@@ -54,7 +54,7 @@ from cycler import cycler  # noqa: F401
 import matplotlib
 import matplotlib.colorbar
 import matplotlib.image
-from matplotlib import _api
+from matplotlib import is_interactive as _is_interactive, _api
 from matplotlib import (  # noqa: F401 Re-exported for typing.
     cm as cm, get_backend as get_backend, rcParams as rcParams, style as style)
 from matplotlib import _pylab_helpers
@@ -78,6 +78,7 @@ from matplotlib.cm import _colormaps
 from matplotlib.colors import _color_sequences, Colormap
 
 import numpy as np
+import matplotlib.backends
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Iterable, Sequence
@@ -617,7 +618,7 @@ def isinteractive() -> bool:
     show : Show all figures (and maybe block).
     pause : Show all figures, and block for a time.
     """
-    return matplotlib.is_interactive()
+    return _is_interactive()
 
 
 # Note: The return type of ioff being AbstractContextManager
