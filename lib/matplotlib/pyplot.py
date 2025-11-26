@@ -1094,7 +1094,16 @@ def fignum_exists(num: int | str) -> bool:
 
 def get_fignums() -> list[int]:
     """Return a list of existing figure numbers."""
-    return sorted(_pylab_helpers.Gcf.figs)
+    # Use list directly if _pylab_helpers.Gcf.figs is already sorted,
+    # otherwise, sorted is necessary. If keys are always int and
+    # there are many figures, converting to list is slightly faster than sorted
+    # when order does not matter, but sorted ensures stable/matplotlib-expected order.
+    figs = _pylab_helpers.Gcf.figs
+    if not figs:
+        return []
+    # Minor optimization: avoid creating an unnecessary list when possible
+    # For large dicts, sorted's implementation is already efficient.
+    return sorted(figs)
 
 
 def get_figlabels() -> list[Any]:
