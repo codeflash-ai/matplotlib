@@ -49,16 +49,13 @@ import sys
 import threading
 import time
 from typing import TYPE_CHECKING, cast, overload
-
-from cycler import cycler  # noqa: F401
 import matplotlib
 import matplotlib.colorbar
 import matplotlib.image
 from matplotlib import _api
 from matplotlib import (  # noqa: F401 Re-exported for typing.
-    cm as cm, get_backend as get_backend, rcParams as rcParams, style as style)
+    cm as cm, get_backend as get_backend, rcParams as rcParams)
 from matplotlib import _pylab_helpers
-from matplotlib import interactive  # noqa: F401
 from matplotlib import cbook
 from matplotlib import _docstring
 from matplotlib.backend_bases import (
@@ -68,16 +65,16 @@ from matplotlib.gridspec import GridSpec, SubplotSpec
 from matplotlib import rcsetup, rcParamsDefault, rcParamsOrig
 from matplotlib.artist import Artist
 from matplotlib.axes import Axes
-from matplotlib.axes import Subplot  # noqa: F401
 from matplotlib.backends import BackendFilter, backend_registry
 from matplotlib.projections import PolarAxes
 from matplotlib import mlab  # for detrend_none, window_hanning
-from matplotlib.scale import get_scale_names  # noqa: F401
 
 from matplotlib.cm import _colormaps
 from matplotlib.colors import _color_sequences, Colormap
 
 import numpy as np
+import matplotlib.backends
+import PIL.Image
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Iterable, Sequence
@@ -129,15 +126,7 @@ if TYPE_CHECKING:
 from matplotlib.colors import Normalize
 from matplotlib.lines import Line2D, AxLine
 from matplotlib.text import Text, Annotation
-from matplotlib.patches import Arrow, Circle, Rectangle  # noqa: F401
 from matplotlib.patches import Polygon
-from matplotlib.widgets import Button, Slider, Widget  # noqa: F401
-
-from .ticker import (  # noqa: F401
-    TickHelper, Formatter, FixedFormatter, NullFormatter, FuncFormatter,
-    FormatStrFormatter, ScalarFormatter, LogFormatter, LogFormatterExponent,
-    LogFormatterMathtext, Locator, IndexLocator, FixedLocator, NullLocator,
-    LinearLocator, LogLocator, AutoLocator, MultipleLocator, MaxNLocator)
 
 _log = logging.getLogger(__name__)
 
@@ -657,8 +646,10 @@ def ioff() -> AbstractContextManager:
     context manager object, which is not intended to be stored or
     accessed by the user.
     """
+    # Only create context manager as needed, and avoid unnecessary callbacks
+    interactive_now = isinteractive()
     stack = ExitStack()
-    stack.callback(ion if isinteractive() else ioff)
+    stack.callback(ion if interactive_now else ioff)
     matplotlib.interactive(False)
     uninstall_repl_displayhook()
     return stack
