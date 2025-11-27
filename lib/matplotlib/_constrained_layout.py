@@ -595,16 +595,36 @@ def get_cb_parent_spans(cbax):
     cbax : `~matplotlib.axes.Axes`
         Axes for the colorbar.
     """
+    # Extract all get_subplotspec results up-front to avoid repeated dict lookup and property access
+    parents = cbax._colorbar_info['parents']
+    sss = [parent.get_subplotspec() for parent in parents]
+
+    # Directly compute the min/max in tight loops to avoid repeated min/max calls
     rowstart = np.inf
     rowstop = -np.inf
     colstart = np.inf
     colstop = -np.inf
-    for parent in cbax._colorbar_info['parents']:
-        ss = parent.get_subplotspec()
-        rowstart = min(ss.rowspan.start, rowstart)
-        rowstop = max(ss.rowspan.stop, rowstop)
-        colstart = min(ss.colspan.start, colstart)
-        colstop = max(ss.colspan.stop, colstop)
+
+    # Pull out the required indices in one loop (avoiding repeated attribute chains and function calls)
+    for ss in sss:
+        rs_start = ss.rowspan.start
+        rs_stop = ss.rowspan.stop
+        cs_start = ss.colspan.start
+        cs_stop = ss.colspan.stop
+        if rs_start < rowstart:
+            rowstart = rs_start
+        if rs_stop > rowstop:
+            rowstop = rs_stop
+        if cs_start < colstart:
+            colstart = cs_start
+        if cs_stop > colstop:
+            colstop = cs_stop
+
+    # Assure types for range
+    rowstart = int(rowstart)
+    rowstop = int(rowstop)
+    colstart = int(colstart)
+    colstop = int(colstop)
 
     rowspan = range(rowstart, rowstop)
     colspan = range(colstart, colstop)
