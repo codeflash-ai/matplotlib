@@ -54,6 +54,7 @@ import numpy as np
 from matplotlib import _api, artist as martist
 import matplotlib.transforms as mtransforms
 import matplotlib._layoutgrid as mlayoutgrid
+import math
 
 
 _log = logging.getLogger(__name__)
@@ -595,20 +596,32 @@ def get_cb_parent_spans(cbax):
     cbax : `~matplotlib.axes.Axes`
         Axes for the colorbar.
     """
-    rowstart = np.inf
-    rowstop = -np.inf
-    colstart = np.inf
-    colstop = -np.inf
+    rowstart = math.inf
+    rowstop = -math.inf
+    colstart = math.inf
+    colstop = -math.inf
     for parent in cbax._colorbar_info['parents']:
         ss = parent.get_subplotspec()
-        rowstart = min(ss.rowspan.start, rowstart)
-        rowstop = max(ss.rowspan.stop, rowstop)
-        colstart = min(ss.colspan.start, colstart)
-        colstop = max(ss.colspan.stop, colstop)
+        rowspan = ss.rowspan
+        colspan = ss.colspan
 
-    rowspan = range(rowstart, rowstop)
-    colspan = range(colstart, colstop)
-    return rowspan, colspan
+        rs_start = rowspan.start
+        rs_stop = rowspan.stop
+        cs_start = colspan.start
+        cs_stop = colspan.stop
+
+        if rs_start < rowstart:
+            rowstart = rs_start
+        if rs_stop > rowstop:
+            rowstop = rs_stop
+        if cs_start < colstart:
+            colstart = cs_start
+        if cs_stop > colstop:
+            colstop = cs_stop
+
+    rowspan_range = range(rowstart, rowstop)
+    colspan_range = range(colstart, colstop)
+    return rowspan_range, colspan_range
 
 
 def get_pos_and_bbox(ax, renderer):
@@ -780,15 +793,17 @@ def reset_margins(layoutgrids, fig):
 
 
 def colorbar_get_pad(layoutgrids, cax):
-    parents = cax._colorbar_info['parents']
+    info = cax._colorbar_info
+    parents = info['parents']
     gs = parents[0].get_gridspec()
 
     cb_rspans, cb_cspans = get_cb_parent_spans(cax)
-    bboxouter = layoutgrids[gs].get_inner_bbox(rows=cb_rspans, cols=cb_cspans)
+    grid = layoutgrids[gs]
+    bboxouter = grid.get_inner_bbox(rows=cb_rspans, cols=cb_cspans)
 
-    if cax._colorbar_info['location'] in ['right', 'left']:
+    if info['location'] in {'right', 'left'}:
         size = bboxouter.width
     else:
         size = bboxouter.height
 
-    return cax._colorbar_info['pad'] * size
+    return info['pad'] * size
