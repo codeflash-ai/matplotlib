@@ -334,23 +334,54 @@ class Dvi:
         # baseline (the "down" count is necessary to handle xcolor).
         down_stack = [0]
         self._baseline_v = None
+
+        # Performance improvement: 
+        # - Cache _dtable, 'self', and frequently used attributes in local variables
+        # - Precompute commonly used function names for comparisons
+        # - Minimize repeated lookups
+        _dtable = self._dtable
+        _stack_getter = getattr(self, "stack", None)
+        # Determine if we can avoid repeated getattr
+        _has_stack_attr = hasattr(self, "stack")
+        _down_stack_append = down_stack.append
+        _down_stack_pop = down_stack.pop
+
+        _state_post_post = _dvistate.post_post
+        _baseline_v = None
+
+        # Cache self in locals for inner loop (micro-optimization)
+        self_v = self
+        file_read = self.file.read
+
         while True:
-            byte = self.file.read(1)[0]
-            self._dtable[byte](self, byte)
-            name = self._dtable[byte].__name__
+            # Reading single byte, faster to use readinto for large batches, 
+            # but we must preserve file behavior and exceptions.
+            b = file_read(1)
+            # Defensive: ensure to raise same IndexError if at EOF as original
+            byte = b[0]
+
+            # Function object used repeatedly, cache it
+            op = _dtable[byte]
+            op(self_v, byte)
+
+            name = op.__name__
             if name == "_push":
-                down_stack.append(down_stack[-1])
+                _down_stack_append(down_stack[-1])
             elif name == "_pop":
-                down_stack.pop()
+                _down_stack_pop()
             elif name == "_down":
                 down_stack[-1] += 1
-            if (self._baseline_v is None
-                    and len(getattr(self, "stack", [])) == 3
-                    and down_stack[-1] >= 4):
-                self._baseline_v = self.v
+
+            # Optimize getattr for self.stack (often largest cost in profile).
+            # If 'stack' attribute exists on self, just use it, otherwise [].
+            if self._baseline_v is None:
+                stack_len = len(self.stack) if _has_stack_attr else 0
+                if stack_len == 3 and down_stack[-1] >= 4:
+                    self._baseline_v = self.v
+
             if byte == 140:                         # end of page
                 return True
-            if self.state is _dvistate.post_post:   # end of file
+            if self.state is _state_post_post:  # end of file
                 self.close()
                 return False
 
