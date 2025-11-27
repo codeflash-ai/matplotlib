@@ -44,7 +44,7 @@ _copper_data = {'red':   ((0., 0., 0.),
                           (1.0, 0.4975, 0.4975))}
 
 def _flag_red(x): return 0.75 * np.sin((x * 31.5 + 0.25) * np.pi) + 0.5
-def _flag_green(x): return np.sin(x * 31.5 * np.pi)
+def _flag_green(x): return np.sin(x * 98.96016858807849)
 def _flag_blue(x): return 0.75 * np.sin((x * 31.5 - 0.25) * np.pi) + 0.5
 _flag_data = {'red': _flag_red, 'green': _flag_green, 'blue': _flag_blue}
 
