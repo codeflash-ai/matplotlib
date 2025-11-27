@@ -1,6 +1,6 @@
 from collections import namedtuple
 import contextlib
-from functools import cache, wraps
+from functools import lru_cache, cache, wraps
 import inspect
 from inspect import Signature, Parameter
 import logging
@@ -1407,9 +1407,11 @@ def _get_tightbbox_for_layout_only(obj, *args, **kwargs):
     *for_layout_only* kwarg; this helper tries to use the kwarg but skips it
     when encountering third-party subclasses that do not support it.
     """
-    try:
+    if _supports_for_layout_only(type(obj)):
+        # Fast path: only add argument if actually supported
         return obj.get_tightbbox(*args, **{**kwargs, "for_layout_only": True})
-    except TypeError:
+    else:
+        # Fallback: don't pass the kwarg
         return obj.get_tightbbox(*args, **kwargs)
 
 
@@ -1857,6 +1859,17 @@ def kwdoc(artist):
     return ('\n'.join(ai.pprint_setters_rest(leadingspace=4))
             if mpl.rcParams['docstring.hardcopy'] else
             'Properties:\n' + '\n'.join(ai.pprint_setters(leadingspace=4)))
+
+
+@lru_cache(maxsize=128)
+def _supports_for_layout_only(obj_type):
+    """Check if the class' get_tightbbox supports 'for_layout_only'."""
+    try:
+        sig = inspect.signature(obj_type.get_tightbbox)
+        return 'for_layout_only' in sig.parameters
+    except (AttributeError, ValueError, TypeError):
+        # Defensive: fallback if get_tightbbox is weird/not inspectable
+        return False
 
 # We defer this to the end of them module, because it needs ArtistInspector
 # to be defined.

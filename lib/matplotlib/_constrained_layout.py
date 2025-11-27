@@ -635,7 +635,8 @@ def get_pos_and_bbox(ax, renderer):
     if tightbbox is None:
         bbox = pos
     else:
-        bbox = tightbbox.transformed(fig.transFigure.inverted())
+        inv_transFigure = fig.transFigure.inverted()
+        bbox = tightbbox.transformed(inv_transFigure)
     return pos, bbox
 
 
