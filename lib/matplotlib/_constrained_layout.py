@@ -249,9 +249,11 @@ def check_no_collapsed_axes(layoutgrids, fig):
         gs = ax.get_gridspec()
         if gs in layoutgrids:  # also implies gs is not None.
             lg = layoutgrids[gs]
-            for i in range(gs.nrows):
-                for j in range(gs.ncols):
-                    bb = lg.get_inner_bbox(i, j)
+            nrows, ncols = gs.nrows, gs.ncols
+            get_inner_bbox = lg.get_inner_bbox
+            for i in range(nrows):
+                for j in range(ncols):
+                    bb = get_inner_bbox(i, j)
                     if bb.width <= 0 or bb.height <= 0:
                         return False
     return True
