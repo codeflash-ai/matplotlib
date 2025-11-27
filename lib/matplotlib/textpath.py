@@ -43,7 +43,12 @@ class TextToPath:
         """
         Return a unique id for the given font and character-code set.
         """
-        return urllib.parse.quote(f"{font.postscript_name}-{ccode:x}")
+        # Fast path: Skip urllib.parse.quote if the string is already safe (which it will be for [A-Za-z0-9-])
+        s = f"{font.postscript_name}-{ccode:x}"
+        if s.isalnum() or '-' in s:
+            # If string contains only safe characters, output as-is
+            return s
+        return urllib.parse.quote(s)
 
     def get_text_width_height_descent(self, s, prop, ismath):
         fontsize = prop.get_size_in_points()
