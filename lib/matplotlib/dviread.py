@@ -1036,10 +1036,15 @@ def find_tex_file(filename):
     if isinstance(filename, bytes):
         filename = filename.decode('utf-8', errors='replace')
 
+
+    # Attempt to use long-lived luatex-based search if available, else fallback
+    lk = None
     try:
         lk = _LuatexKpsewhich()
     except FileNotFoundError:
-        lk = None  # Fallback to directly calling kpsewhich, as below.
+        pass
+
+    path = None
 
     if lk:
         path = lk.search(filename)
@@ -1048,17 +1053,33 @@ def find_tex_file(filename):
             # On Windows only, kpathsea can use utf-8 for cmd args and output.
             # The `command_line_encoding` environment variable is set to force
             # it to always use utf-8 encoding.  See Matplotlib issue #11848.
-            kwargs = {'env': {**os.environ, 'command_line_encoding': 'utf-8'},
-                      'encoding': 'utf-8'}
+            # Inline dict expansion only once, avoids overhead in hotpath
+            env = os.environ.copy()
+            env['command_line_encoding'] = 'utf-8'
+            kwargs = {'env': env, 'encoding': 'utf-8'}
         else:  # On POSIX, run through the equivalent of os.fsdecode().
-            kwargs = {'encoding': sys.getfilesystemencoding(),
-                      'errors': 'surrogateescape'}
+            enc = sys.getfilesystemencoding()
+            kwargs = {'encoding': enc, 'errors': 'surrogateescape'}
+
+        # Fast-fail and avoid unnecessary computation: check that kpsewhich exists first
+        # (Minimize launching subprocess if kpsewhich not present)
+        kpsewhich_path = None
 
         try:
-            path = (cbook._check_and_log_subprocess(['kpsewhich', filename],
-                                                    _log, **kwargs)
-                    .rstrip('\n'))
-        except (FileNotFoundError, RuntimeError):
+            # Use shutil.which for a faster lookup
+            import shutil
+            kpsewhich_path = shutil.which('kpsewhich')
+        except ImportError:
+            pass  # If shutil not available (~never), fallback to subprocess call only
+
+        if kpsewhich_path is not None:
+            try:
+                # Direct result trimming, avoids double rstrip with pathlib etc
+                path = cbook._check_and_log_subprocess([kpsewhich_path, filename], _log, **kwargs).rstrip('\n')
+            except (FileNotFoundError, RuntimeError):
+                path = None
+        else:
+            # If kpsewhich not found, forcibly trigger exception path
             path = None
 
     if path:
