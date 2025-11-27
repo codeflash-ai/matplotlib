@@ -47,9 +47,10 @@ class StrCategoryConverter(units.ConversionInterface):
         """
         if unit is None:
             raise ValueError(
-                'Missing category information for StrCategoryConverter; '
-                'this might be caused by unintendedly mixing categorical and '
-                'numeric data')
+                "Missing category information for StrCategoryConverter; "
+                "this might be caused by unintendedly mixing categorical and "
+                "numeric data"
+            )
         StrCategoryConverter._validate_unit(unit)
         # dtype = object preserves numerical pass throughs
         values = np.atleast_1d(np.array(value, dtype=object))
@@ -77,11 +78,16 @@ class StrCategoryConverter(units.ConversionInterface):
             Information to support default tick labeling
 
         """
-        StrCategoryConverter._validate_unit(unit)
+        if not hasattr(unit, "_mapping"):
+            raise ValueError(
+                f'Provided unit "{unit}" is not valid for a categorical '
+                "converter, as it does not have a _mapping attribute."
+            )
         # locator and formatter take mapping dict because
         # args need to be pass by reference for updates
-        majloc = StrCategoryLocator(unit._mapping)
-        majfmt = StrCategoryFormatter(unit._mapping)
+        mapping = unit._mapping
+        majloc = StrCategoryLocator(mapping)
+        majfmt = StrCategoryFormatter(mapping)
         return units.AxisInfo(majloc=majloc, majfmt=majfmt)
 
     @staticmethod
@@ -109,14 +115,16 @@ class StrCategoryConverter(units.ConversionInterface):
 
     @staticmethod
     def _validate_unit(unit):
-        if not hasattr(unit, '_mapping'):
+        if not hasattr(unit, "_mapping"):
             raise ValueError(
                 f'Provided unit "{unit}" is not valid for a categorical '
-                'converter, as it does not have a _mapping attribute.')
+                "converter, as it does not have a _mapping attribute."
+            )
 
 
 class StrCategoryLocator(ticker.Locator):
     """Tick at every integer mapping of the string data."""
+
     def __init__(self, units_mapping):
         """
         Parameters
@@ -137,6 +145,7 @@ class StrCategoryLocator(ticker.Locator):
 
 class StrCategoryFormatter(ticker.Formatter):
     """String representation of the data at every tick."""
+
     def __init__(self, units_mapping):
         """
         Parameters
@@ -153,13 +162,13 @@ class StrCategoryFormatter(ticker.Formatter):
     def format_ticks(self, values):
         # docstring inherited
         r_mapping = {v: self._text(k) for k, v in self._units.items()}
-        return [r_mapping.get(round(val), '') for val in values]
+        return [r_mapping.get(round(val), "") for val in values]
 
     @staticmethod
     def _text(value):
         """Convert text values into utf-8 or ascii strings."""
         if isinstance(value, bytes):
-            value = value.decode(encoding='utf-8')
+            value = value.decode(encoding="utf-8")
         elif not isinstance(value, str):
             value = str(value)
         return value
@@ -220,10 +229,12 @@ class UnitData:
             if val not in self._mapping:
                 self._mapping[val] = next(self._counter)
         if data.size and convertible:
-            _log.info('Using categorical units to plot a list of strings '
-                      'that are all parsable as floats or dates. If these '
-                      'strings should be plotted as numbers, cast to the '
-                      'appropriate data type before plotting.')
+            _log.info(
+                "Using categorical units to plot a list of strings "
+                "that are all parsable as floats or dates. If these "
+                "strings should be plotted as numbers, cast to the "
+                "appropriate data type before plotting."
+            )
 
 
 # Register the converter with Matplotlib's unit framework
