@@ -139,7 +139,7 @@ def _g26(x): return (3 * x - 1) / 2
 def _g27(x): return (3 * x - 2) / 2
 def _g28(x): return np.abs((3 * x - 1) / 2)
 def _g29(x): return np.abs((3 * x - 2) / 2)
-def _g30(x): return x / 0.32 - 0.78125
+def _g30(x): return x * 3.125 - 0.78125
 def _g31(x): return 2 * x - 0.84
 def _g32(x):
     ret = np.zeros(len(x))
