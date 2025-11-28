@@ -1196,18 +1196,20 @@ class Polygon(Patch):
         ``CLOSEPOLY`` vertex, and add it ourselves.
         """
         xy = np.asarray(xy)
-        nverts, _ = xy.shape
+        nverts = xy.shape[0]
+
         if self._closed:
-            # if the first and last vertex are the "same", then we assume that
-            # the user explicitly passed the CLOSEPOLY vertex. Otherwise, we
-            # have to append one since the last vertex will be "ignored" by
-            # Path
-            if nverts == 1 or nverts > 1 and (xy[0] != xy[-1]).any():
-                xy = np.concatenate([xy, [xy[0]]])
+            # Optimize by using np.array_equal for (xy[0] == xy[-1]).all() check
+            if nverts == 1 or (nverts > 1 and not np.array_equal(xy[0], xy[-1])):
+                # Use np.empty + direct assignment for small concatenation
+                result_shape = (nverts + 1, xy.shape[1])
+                xy_closed = np.empty(result_shape, dtype=xy.dtype)
+                xy_closed[:nverts] = xy
+                xy_closed[-1] = xy[0]
+                xy = xy_closed
         else:
-            # if we aren't closed, and the last vertex matches the first, then
-            # we assume we have an unnecessary CLOSEPOLY vertex and remove it
-            if nverts > 2 and (xy[0] == xy[-1]).all():
+            # Optimize by using np.array_equal for (xy[0] == xy[-1]).all() check
+            if nverts > 2 and np.array_equal(xy[0], xy[-1]):
                 xy = xy[:-1]
         self._path = Path(xy, closed=self._closed)
         self.stale = True
