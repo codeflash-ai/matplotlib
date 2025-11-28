@@ -784,11 +784,16 @@ class Rectangle(Patch):
 
     def _convert_units(self):
         """Convert bounds of the rectangle."""
-        x0 = self.convert_xunits(self._x0)
-        y0 = self.convert_yunits(self._y0)
-        x1 = self.convert_xunits(self._x0 + self._width)
-        y1 = self.convert_yunits(self._y0 + self._height)
-        return x0, y0, x1, y1
+        x0 = self._x0
+        y0 = self._y0
+        width = self._width
+        height = self._height
+        # Hoist attribute accesses to locals for slight performance benefit
+        cx0 = self.convert_xunits(x0)
+        cy0 = self.convert_yunits(y0)
+        cx1 = self.convert_xunits(x0 + width)
+        cy1 = self.convert_yunits(y0 + height)
+        return cx0, cy0, cx1, cy1
 
     def get_patch_transform(self):
         # Note: This cannot be called until after this has been added to
