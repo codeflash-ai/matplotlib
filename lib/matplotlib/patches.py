@@ -64,37 +64,56 @@ class Patch(artist.Artist):
         """
         super().__init__()
 
+
+        # Fast-path: fetch rcParams in advance
+        rcParams = mpl.rcParams
+        hatch_color_rgba = colors.to_rgba(rcParams['hatch.color'])
+        self._hatch_color = hatch_color_rgba
+
+        self._fill = bool(fill)  # needed for set_facecolor call
+
+        # Avoid repeated attribute lookup
+        set_edgecolor = self.set_edgecolor
+        set_facecolor = self.set_facecolor
+        set_color = self.set_color
+
         if linestyle is None:
             linestyle = "solid"
         if capstyle is None:
             capstyle = CapStyle.butt
         if joinstyle is None:
             joinstyle = JoinStyle.miter
-
-        self._hatch_color = colors.to_rgba(mpl.rcParams['hatch.color'])
-        self._fill = bool(fill)  # needed for set_facecolor call
         if color is not None:
             if edgecolor is not None or facecolor is not None:
                 _api.warn_external(
                     "Setting the 'color' property will override "
                     "the edgecolor or facecolor properties.")
-            self.set_color(color)
+            set_color(color)
         else:
-            self.set_edgecolor(edgecolor)
-            self.set_facecolor(facecolor)
+            set_edgecolor(edgecolor)
+            set_facecolor(facecolor)
+
 
         self._linewidth = 0
         self._unscaled_dash_pattern = (0, None)  # offset, dash
         self._dash_pattern = (0, None)  # offset, dash (scaled by linewidth)
 
-        self.set_linestyle(linestyle)
-        self.set_linewidth(linewidth)
-        self.set_antialiased(antialiased)
-        self.set_hatch(hatch)
-        self.set_capstyle(capstyle)
-        self.set_joinstyle(joinstyle)
+        # Avoid repeated lookups for methods
+        set_linestyle = self.set_linestyle
+        set_linewidth = self.set_linewidth
+        set_antialiased = self.set_antialiased
+        set_hatch = self.set_hatch
+        set_capstyle = self.set_capstyle
+        set_joinstyle = self.set_joinstyle
 
-        if len(kwargs):
+        set_linestyle(linestyle)
+        set_linewidth(linewidth)
+        set_antialiased(antialiased)
+        set_hatch(hatch)
+        set_capstyle(capstyle)
+        set_joinstyle(joinstyle)
+
+        if kwargs:
             self._internal_update(kwargs)
 
     def get_verts(self):
