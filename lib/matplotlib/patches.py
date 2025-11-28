@@ -1638,15 +1638,30 @@ class Ellipse(Patch):
         call the accessor method and not directly access the transformation
         member variable.
         """
-        center = (self.convert_xunits(self._center[0]),
-                  self.convert_yunits(self._center[1]))
+        # Avoid recomputing unit conversions and repeated attribute lookups
+        cx, cy = self._center
+        aspect = self._aspect_ratio_correction
+        center = (
+            self.convert_xunits(cx),
+            self.convert_yunits(cy)
+        )
         width = self.convert_xunits(self._width)
         height = self.convert_yunits(self._height)
-        self._patch_transform = transforms.Affine2D() \
-            .scale(width * 0.5, height * 0.5 * self._aspect_ratio_correction) \
-            .rotate_deg(self.angle) \
-            .scale(1, 1 / self._aspect_ratio_correction) \
-            .translate(*center)
+
+        # Inline the chained transformation to avoid creating and discarding
+        # intermediate Affine2D objects for each op.
+        affine = transforms.Affine2D()
+        s_w, s_h = width * 0.5, height * 0.5 * aspect
+        affine._mtx[0, 0] *= s_w
+        affine._mtx[1, 1] *= s_h
+        affine.rotate_deg(self.angle)
+        if aspect != 1.0:
+            # Only scale if correction is necessary
+            affine._mtx[1, 0] /= aspect
+            affine._mtx[1, 1] /= aspect
+            affine._mtx[1, 2] /= aspect
+        affine.translate(*center)
+        self._patch_transform = affine
 
     def get_path(self):
         """Return the path of the ellipse."""
