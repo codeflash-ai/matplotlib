@@ -1314,7 +1314,7 @@ class Arrow(Patch):
         [0.8, 0.3], [0.8, 0.1]])
 
     @_docstring.dedent_interpd
-    def __init__(self, x, y, dx, dy, *, width=1.0, **kwargs):
+    def __init__(self, x: float, y: float, dx: float, dy: float, *, width: float = 1.0, **kwargs):
         """
         Draws an arrow from (*x*, *y*) to (*x* + *dx*, *y* + *dy*).
         The width of the arrow is scaled by *width*.
@@ -1344,7 +1344,22 @@ class Arrow(Patch):
             properties.
         """
         super().__init__(**kwargs)
-        self.set_data(x, y, dx, dy, width)
+        self._x = x
+        self._y = y
+        self._dx = dx
+        self._dy = dy
+        self._width = width
+        # Directly assign _patch_transform, bypassing set_data
+        # These helpers are imported in the patch, so we use them
+        from matplotlib.transforms import Affine2D
+        from numpy import arctan2, hypot
+        self._patch_transform = (
+            Affine2D()
+            .scale(hypot(dx, dy), width)
+            .rotate(arctan2(dy, dx))
+            .translate(x, y)
+            .frozen()
+        )
 
     def get_path(self):
         return self._path
