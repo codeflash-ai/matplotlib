@@ -1002,10 +1002,17 @@ class PathPatch(Patch):
         self._path = path
 
     def get_path(self):
+        # Use property for faster attribute access; kept for compatibility
         return self._path
 
     def set_path(self, path):
         self._path = path
+
+
+    # Use a read-only property to avoid the overhead of an extra function call for attribute access
+    @property
+    def path(self):
+        return self._path
 
 
 class StepPatch(PathPatch):
