@@ -3938,7 +3938,9 @@ class FancyBboxPatch(Patch):
         self._height = height
         self.set_boxstyle(boxstyle)
         self._mutation_scale = mutation_scale
-        self._mutation_aspect = mutation_aspect
+
+        # Pre-compute mutation_aspect to avoid repeated None checks
+        self._mutation_aspect = mutation_aspect if mutation_aspect is not None else 1
         self.stale = True
 
     @_docstring.dedent_interpd
@@ -4013,8 +4015,7 @@ class FancyBboxPatch(Patch):
 
     def get_mutation_aspect(self):
         """Return the aspect ratio of the bbox mutation."""
-        return (self._mutation_aspect if self._mutation_aspect is not None
-                else 1)  # backcompat.
+        return self._mutation_aspect
 
     def get_path(self):
         """Return the mutated path of the rectangle."""
