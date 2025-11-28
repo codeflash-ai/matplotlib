@@ -151,7 +151,7 @@ def _g32(x):
     ret[m] = x[m] / 0.08 - 11.5
     return ret
 def _g33(x): return np.abs(2 * x - 0.5)
-def _g34(x): return 2 * x
+def _g34(x): return x + x
 def _g35(x): return 2 * x - 0.5
 def _g36(x): return 2 * x - 1
 
