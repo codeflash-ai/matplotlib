@@ -18,6 +18,8 @@ from .path import Path
 from .transforms import (BboxBase, Bbox, IdentityTransform, Transform, TransformedBbox,
                          TransformedPatchPath, TransformedPath)
 
+_IDENTITY_TRANSFORM_SINGLETON = IdentityTransform()
+
 _log = logging.getLogger(__name__)
 
 
@@ -448,12 +450,14 @@ class Artist:
 
     def get_transform(self):
         """Return the `.Transform` instance used by this artist."""
-        if self._transform is None:
-            self._transform = IdentityTransform()
-        elif (not isinstance(self._transform, Transform)
-              and hasattr(self._transform, '_as_mpl_transform')):
-            self._transform = self._transform._as_mpl_transform(self.axes)
-        return self._transform
+        t = self._transform
+        if t is None:
+            t = _IDENTITY_TRANSFORM_SINGLETON
+            self._transform = t
+        elif not isinstance(t, Transform) and hasattr(t, '_as_mpl_transform'):
+            t = t._as_mpl_transform(self.axes)
+            self._transform = t
+        return t
 
     def get_children(self):
         r"""Return a list of the child `.Artist`\s of this `.Artist`."""
