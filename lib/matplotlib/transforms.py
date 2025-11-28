@@ -2045,8 +2045,10 @@ class Affine2D(Affine2DBase):
         calls to :meth:`rotate`, :meth:`rotate_deg`, :meth:`translate`
         and :meth:`scale`.
         """
-        self._mtx[0, 2] += tx
-        self._mtx[1, 2] += ty
+        # Faster to batch and minimize Python overhead
+        mtx = self._mtx
+        mtx[0, 2] += tx
+        mtx[1, 2] += ty
         self.invalidate()
         return self
 
@@ -2063,13 +2065,13 @@ class Affine2D(Affine2DBase):
         """
         if sy is None:
             sy = sx
-        # explicit element-wise scaling is fastest
-        self._mtx[0, 0] *= sx
-        self._mtx[0, 1] *= sx
-        self._mtx[0, 2] *= sx
-        self._mtx[1, 0] *= sy
-        self._mtx[1, 1] *= sy
-        self._mtx[1, 2] *= sy
+        mtx = self._mtx
+        mtx[0, 0] *= sx
+        mtx[0, 1] *= sx
+        mtx[0, 2] *= sx
+        mtx[1, 0] *= sy
+        mtx[1, 1] *= sy
+        mtx[1, 2] *= sy
         self.invalidate()
         return self
 

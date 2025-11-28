@@ -796,20 +796,31 @@ class Rectangle(Patch):
         # important to call the accessor method and not directly access the
         # transformation member variable.
         bbox = self.get_bbox()
-        if self.rotation_point == 'center':
-            width, height = bbox.x1 - bbox.x0, bbox.y1 - bbox.y0
-            rotation_point = bbox.x0 + width / 2., bbox.y0 + height / 2.
-        elif self.rotation_point == 'xy':
-            rotation_point = bbox.x0, bbox.y0
+        rotation_point = self.rotation_point
+        if rotation_point == 'center':
+            width = bbox.x1 - bbox.x0
+            height = bbox.y1 - bbox.y0
+            rp_x = bbox.x0 + width * 0.5
+            rp_y = bbox.y0 + height * 0.5
+            rotation_point_tuple = (rp_x, rp_y)
+        elif rotation_point == 'xy':
+            rotation_point_tuple = (bbox.x0, bbox.y0)
         else:
-            rotation_point = self.rotation_point
-        return transforms.BboxTransformTo(bbox) \
-                + transforms.Affine2D() \
-                .translate(-rotation_point[0], -rotation_point[1]) \
-                .scale(1, self._aspect_ratio_correction) \
-                .rotate_deg(self.angle) \
-                .scale(1, 1 / self._aspect_ratio_correction) \
-                .translate(*rotation_point)
+            rotation_point_tuple = rotation_point
+
+        # Optimize transformation chain by reusing the Affine2D object
+        affine = transforms.Affine2D()
+        rp0, rp1 = rotation_point_tuple
+        aspect = self._aspect_ratio_correction
+        affine.translate(-rp0, -rp1)
+        if aspect != 1.0:
+            affine.scale(1, aspect)
+        affine.rotate_deg(self.angle)
+        if aspect != 1.0:
+            affine.scale(1, 1 / aspect)
+        affine.translate(rp0, rp1)
+        # Compose with bbox transform
+        return transforms.BboxTransformTo(bbox) + affine
 
     @property
     def rotation_point(self):
@@ -926,7 +937,8 @@ class Rectangle(Patch):
 
     def get_bbox(self):
         """Return the `.Bbox`."""
-        return transforms.Bbox.from_extents(*self._convert_units())
+        x0, y0, x1, y1 = self._convert_units()
+        return transforms.Bbox.from_extents(x0, y0, x1, y1)
 
     xy = property(get_xy, set_xy)
 
