@@ -115,7 +115,7 @@ def _g2(x): return 1
 def _g3(x): return x
 def _g4(x): return x ** 2
 def _g5(x): return x ** 3
-def _g6(x): return x ** 4
+def _g6(x): return x * x * x * x
 def _g7(x): return np.sqrt(x)
 def _g8(x): return np.sqrt(np.sqrt(x))
 def _g9(x): return np.sin(x * np.pi / 2)
