@@ -129,7 +129,7 @@ def _g16(x): return np.cos(x * 2 * np.pi)
 def _g17(x): return np.abs(np.sin(x * 2 * np.pi))
 def _g18(x): return np.abs(np.cos(x * 2 * np.pi))
 def _g19(x): return np.abs(np.sin(x * 4 * np.pi))
-def _g20(x): return np.abs(np.cos(x * 4 * np.pi))
+def _g20(x): return np.abs(np.cos(x * 12.566370614359172))
 def _g21(x): return 3 * x
 def _g22(x): return 3 * x - 1
 def _g23(x): return 3 * x - 2
