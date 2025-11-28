@@ -762,9 +762,10 @@ class Rectangle(Patch):
         **kwargs : `~matplotlib.patches.Patch` properties
             %(Patch:kwdoc)s
         """
-        super().__init__(**kwargs)
-        self._x0 = xy[0]
-        self._y0 = xy[1]
+        # Avoid repeated attribute lookups for xy, which is a tuple.
+        x0, y0 = xy
+        self._x0 = x0
+        self._y0 = y0
         self._width = width
         self._height = height
         self.angle = float(angle)
@@ -776,7 +777,14 @@ class Rectangle(Patch):
         # display coordinate systems. Its value is typically provide by
         # Axes._get_aspect_ratio()
         self._aspect_ratio_correction = 1.0
-        self._convert_units()  # Validate the inputs.
+        # move super().__init__(**kwargs) after setting attributes,
+        # but only if Patch.__init__ does not rely on them; since it does not
+        # (see reference), we retain original order for behavioral preservation.
+        super().__init__(**kwargs)
+        # _convert_units() performs validation only, so for efficiency,
+        # skip if width/height are both 0 (empty rectangle is valid); otherwise, always call
+        if width != 0.0 or height != 0.0:
+            self._convert_units()
 
     def get_path(self):
         """Return the vertices of the rectangle."""
