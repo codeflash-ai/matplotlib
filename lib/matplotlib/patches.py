@@ -1932,18 +1932,49 @@ class Annulus(Patch):
             .transform(verts)
 
     def _recompute_path(self):
-        # circular arc
-        arc = Path.arc(0, 360)
+        # Cache the arc path object in the class to avoid repeated construction
+        # Path.arc(0, 360) is always the same object and arc.vertices/codes never mutate
+        # Use the object from the first call
+        arc = getattr(self, '_full_circle_arc', None)
+        if arc is None:
+            arc = Path.arc(0, 360)
+            # This cache will not grow since the angles are always 0/360 here
+            type(self)._full_circle_arc = arc
+
 
         # annulus needs to draw an outer ring
         # followed by a reversed and scaled inner ring
         a, b, w = self.a, self.b, self.width
-        v1 = self._transform_verts(arc.vertices, a, b)
-        v2 = self._transform_verts(arc.vertices[::-1], a - w, b - w)
-        v = np.vstack([v1, v2, v1[0, :], (0, 0)])
-        c = np.hstack([arc.codes, Path.MOVETO,
-                       arc.codes[1:], Path.MOVETO,
-                       Path.CLOSEPOLY])
+        v_arc = arc.vertices
+        codes_arc = arc.codes
+
+        # Avoid creating an intermediate reversed copy if possible by slicing and copying
+        # This also saves repeated reversed code generation
+        # Preallocate output arrays for v1, v2 and v
+        # v1: outer ellipse
+        v1 = self._transform_verts(v_arc, a, b)
+
+        # v2: inner ellipse, reverse by slicing
+        v2 = self._transform_verts(v_arc[::-1], a - w, b - w)
+
+        # Preallocate the final vertices array for stack: 
+        # [v1, v2, v1[0, :], (0, 0)], shape = (v1.shape[0] + v2.shape[0] + 2, 2)
+        n = v1.shape[0]
+        v = np.empty((2*n + 2, 2), dtype=v1.dtype)
+        v[:n] = v1
+        v[n:2*n] = v2
+        v[2*n] = v1[0]
+        v[2*n+1] = (0.0, 0.0)
+
+        # Preallocate the codes array and fill in directly:
+        # [arc.codes, Path.MOVETO, arc.codes[1:], Path.MOVETO, Path.CLOSEPOLY]
+        c = np.empty((2*n + 2,), dtype=codes_arc.dtype)
+        c[:n] = codes_arc
+        c[n] = Path.MOVETO
+        c[n+1:2*n] = codes_arc[1:]
+        c[2*n] = Path.MOVETO
+        c[2*n+1] = Path.CLOSEPOLY
+
         self._path = Path(v, c)
 
     def get_path(self):
