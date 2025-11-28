@@ -23,6 +23,8 @@ from .bezier import (
 from .path import Path
 from ._enums import JoinStyle, CapStyle
 
+StairData = namedtuple('StairData', 'values edges baseline')
+
 
 @_docstring.interpd
 @_api.define_aliases({
@@ -1091,7 +1093,7 @@ class StepPatch(PathPatch):
 
     def get_data(self):
         """Get `.StepPatch` values, edges and baseline as namedtuple."""
-        StairData = namedtuple('StairData', 'values edges baseline')
+        # Use module-level namedtuple for StairData (avoids per-call reconstruction)
         return StairData(self._values, self._edges, self._baseline)
 
     def set_data(self, values=None, edges=None, baseline=None):
