@@ -1842,7 +1842,14 @@ class Affine2DBase(AffineBase):
 
     def frozen(self):
         # docstring inherited
-        return Affine2D(self.get_matrix().copy())
+        matrix = self.get_matrix()
+        # If matrix is the cached identity matrix, reuse it for copy-free instantiation
+        # This avoids unnecessary memory allocations for the most common case.
+        if hasattr(self, '_mtx') and matrix is self._mtx:
+            # Affine2D likely expects writeable, but _mtx is already np.identity which is safe.
+            return Affine2D(matrix)
+        # Otherwise, force a copy to avoid unintended mutations
+        return Affine2D(matrix.copy())
 
     @property
     def is_separable(self):
