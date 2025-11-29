@@ -195,13 +195,15 @@ class HandlerNpoints(HandlerBase):
         if numpoints > 1:
             # we put some pad here to compensate the size of the marker
             pad = self._marker_pad * fontsize
-            xdata = np.linspace(-xdescent + pad,
-                                -xdescent + width - pad,
-                                numpoints)
+            xdata = np.linspace(-xdescent + pad, -xdescent + width - pad, numpoints)
             xdata_marker = xdata
         else:
-            xdata = [-xdescent, -xdescent + width]
-            xdata_marker = [-xdescent + 0.5 * width]
+            # For single marker, use scalars for efficiency
+            x_left = -xdescent
+            x_right = -xdescent + width
+            x_mid = x_left + 0.5 * width
+            xdata = [x_left, x_right]
+            xdata_marker = [x_mid]
         return xdata, xdata_marker
 
 
@@ -248,14 +250,24 @@ class HandlerLine2DCompound(HandlerNpoints):
         xdata, xdata_marker = self.get_xdata(legend, xdescent, ydescent,
                                              width, height, fontsize)
 
-        ydata = np.full_like(xdata, ((height - ydescent) / 2))
+        y_mid = (height - ydescent) / 2
+        # Use np.full only if multiple markers, else just scalar
+        if isinstance(xdata, np.ndarray):
+            ydata = np.full_like(xdata, y_mid)
+        else:
+            ydata = [y_mid for _ in xdata]
         legline = Line2D(xdata, ydata)
 
         self.update_prop(legline, orig_handle, legend)
         legline.set_drawstyle('default')
         legline.set_marker("")
 
-        legline_marker = Line2D(xdata_marker, ydata[:len(xdata_marker)])
+        # For marker line, only use corresponding middle y ordinate
+        if isinstance(xdata_marker, np.ndarray):
+            y_marker = np.full_like(xdata_marker, y_mid)
+        else:
+            y_marker = [y_mid for _ in xdata_marker]
+        legline_marker = Line2D(xdata_marker, y_marker)
         self.update_prop(legline_marker, orig_handle, legend)
         legline_marker.set_linestyle('None')
         if legend.markerscale != 1:
