@@ -2850,7 +2850,10 @@ def nonsingular(vmin, vmax, expander=0.001, tiny=1e-15, increasing=True):
         close to zero, it returns -*expander*, *expander*.
     """
 
-    if (not np.isfinite(vmin)) or (not np.isfinite(vmax)):
+    # Fast-path isfinite test (most hot path): only call once for both vmin, vmax
+    finite_vmin = np.isfinite(vmin)
+    finite_vmax = np.isfinite(vmax)
+    if not (finite_vmin and finite_vmax):
         return -expander, expander
 
     swapped = False
@@ -2858,12 +2861,19 @@ def nonsingular(vmin, vmax, expander=0.001, tiny=1e-15, increasing=True):
         vmin, vmax = vmax, vmin
         swapped = True
 
-    # Expand vmin, vmax to float: if they were integer types, they can wrap
-    # around in abs (abs(np.int8(-128)) == -128) and vmax - vmin can overflow.
-    vmin, vmax = map(float, [vmin, vmax])
+    # Avoid indirect call to map/float. This saves function call overhead.
+    vmin = float(vmin)
+    vmax = float(vmax)
 
-    maxabsvalue = max(abs(vmin), abs(vmax))
-    if maxabsvalue < (1e6 / tiny) * np.finfo(float).tiny:
+    # Cache float tiny lookup
+    float_tiny = np.finfo(float).tiny
+    threshold = (1e6 / tiny) * float_tiny
+
+    abs_vmin = abs(vmin)
+    abs_vmax = abs(vmax)
+    maxabsvalue = abs_vmin if abs_vmin > abs_vmax else abs_vmax
+
+    if maxabsvalue < threshold:
         vmin = -expander
         vmax = expander
 
@@ -2872,8 +2882,9 @@ def nonsingular(vmin, vmax, expander=0.001, tiny=1e-15, increasing=True):
             vmin = -expander
             vmax = expander
         else:
-            vmin -= expander*abs(vmin)
-            vmax += expander*abs(vmax)
+            vmin -= expander * abs_vmin
+            vmax += expander * abs_vmax
+
 
     if swapped and not increasing:
         vmin, vmax = vmax, vmin
