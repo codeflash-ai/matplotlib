@@ -180,15 +180,12 @@ class HandlerNpoints(HandlerBase):
             Keyword arguments forwarded to `.HandlerBase`.
         """
         super().__init__(**kwargs)
-
-        self._numpoints = numpoints
-        self._marker_pad = marker_pad
+        # Assign directly using tuple packing for slightly faster attribute setting
+        self._numpoints, self._marker_pad = numpoints, marker_pad
 
     def get_numpoints(self, legend):
-        if self._numpoints is None:
-            return legend.numpoints
-        else:
-            return self._numpoints
+        # Use conditional expression for branch elimination and potential minor speedup
+        return self._numpoints if self._numpoints is not None else legend.numpoints
 
     def get_xdata(self, legend, xdescent, ydescent, width, height, fontsize):
         numpoints = self.get_numpoints(legend)
