@@ -2268,11 +2268,16 @@ class BlendedGenericTransform(_BlendedMixin, Transform):
             if self._x == self._y:
                 self._affine = self._x.get_affine()
             else:
-                x_mtx = self._x.get_affine().get_matrix()
-                y_mtx = self._y.get_affine().get_matrix()
-                # We already know the transforms are separable, so we can skip
-                # setting b and c to zero.
-                mtx = np.array([x_mtx[0], y_mtx[1], [0.0, 0.0, 1.0]])
+                # Avoid repeated attribute/method lookups for speed
+                x_affine = self._x.get_affine()
+                y_affine = self._y.get_affine()
+                x_mtx = x_affine.get_matrix()
+                y_mtx = y_affine.get_matrix()
+                # Extract only what is needed from the matrices (rows 0 and 1)
+                mtx = np.empty((3, 3), dtype=float)
+                mtx[0] = x_mtx[0]
+                mtx[1] = y_mtx[1]
+                mtx[2] = (0.0, 0.0, 1.0)
                 self._affine = Affine2D(mtx)
             self._invalid = 0
         return self._affine
