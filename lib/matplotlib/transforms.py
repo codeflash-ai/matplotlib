@@ -779,8 +779,24 @@ class Bbox(BboxBase):
         ___init__ = __init__
 
         def __init__(self, points, **kwargs):
-            self._check(points)
-            self.___init__(points, **kwargs)
+            """
+        Parameters
+        ----------
+        points : `~numpy.ndarray`
+            A (2, 2) array of the form ``[[x0, y0], [x1, y1]]``.
+        """
+            super().__init__(**kwargs)
+            points = np.asarray(points, float)
+            if points.shape != (2, 2):
+                raise ValueError('Bbox points must be of the form '
+                                 '"[[x0, y0], [x1, y1]]".')
+            self._points = points
+            self._minpos = _default_minpos.copy()
+            self._ignore = True
+            # it is helpful in some contexts to know if the bbox is a
+            # default or has been mutated; we store the orig points to
+            # support the mutated methods
+            self._points_orig = self._points.copy()
 
         def invalidate(self):
             self._check(self._points)
@@ -800,7 +816,9 @@ class Bbox(BboxBase):
     @staticmethod
     def null():
         """Create a new null `Bbox` from (inf, inf) to (-inf, -inf)."""
-        return Bbox([[np.inf, np.inf], [-np.inf, -np.inf]])
+        if not hasattr(Bbox.null, "_null_array"):
+            Bbox.null._null_array = np.array([[np.inf, np.inf], [-np.inf, -np.inf]], dtype=float)
+        return Bbox(Bbox.null._null_array.copy())
 
     @staticmethod
     def from_bounds(x0, y0, width, height):
