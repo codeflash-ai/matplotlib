@@ -226,13 +226,23 @@ class HandlerNpointsYoffsets(HandlerNpoints):
         super().__init__(numpoints=numpoints, **kwargs)
         self._yoffsets = yoffsets
 
-    def get_ydata(self, legend, xdescent, ydescent, width, height, fontsize):
-        if self._yoffsets is None:
-            ydata = height * legend._scatteryoffsets
+        # Cache the array conversion to avoid repeated calls in get_ydata
+        if yoffsets is not None:
+            # Only cache conversion if not already a numpy array of correct dtype
+            if not isinstance(yoffsets, np.ndarray):
+                self._yoffsets_arr = np.asarray(yoffsets)
+            else:
+                self._yoffsets_arr = yoffsets
         else:
-            ydata = height * np.asarray(self._yoffsets)
+            self._yoffsets_arr = None
 
-        return ydata
+    def get_ydata(self, legend, xdescent, ydescent, width, height, fontsize):
+        if self._yoffsets_arr is None:
+            # legend._scatteryoffsets may not be a np.ndarray
+            return height * legend._scatteryoffsets
+        else:
+            # Use cached numpy array for yoffsets
+            return height * self._yoffsets_arr
 
 
 class HandlerLine2DCompound(HandlerNpoints):
