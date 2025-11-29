@@ -268,7 +268,6 @@ class RendererPS(_backend_pdf_ps.RendererPDFPSBase):
         self._path_collection_id = 0
 
         self._character_tracker = _backend_pdf_ps.CharacterTracker()
-        self._logwarn_once = functools.cache(_log.warning)
 
     def _is_transparent(self, rgb_or_rgba):
         if rgb_or_rgba is None:
@@ -301,10 +300,11 @@ class RendererPS(_backend_pdf_ps.RendererPDFPSBase):
 
     @staticmethod
     def _linejoin_cmd(linejoin):
-        # Support for directly passing integer values is for backcompat.
-        linejoin = {'miter': 0, 'round': 1, 'bevel': 2, 0: 0, 1: 1, 2: 2}[
-            linejoin]
-        return f"{linejoin:d} setlinejoin\n"
+        # Avoid rebuilding the mapping dict on every call by using a class-level constant.
+        if not hasattr(RendererPS, '_linejoin_cmd_map'):
+            RendererPS._linejoin_cmd_map = {'miter': 0, 'round': 1, 'bevel': 2, 0: 0, 1: 1, 2: 2}
+        linejoin_value = RendererPS._linejoin_cmd_map[linejoin]
+        return f"{linejoin_value:d} setlinejoin\n"
 
     def set_linejoin(self, linejoin, store=True):
         if linejoin != self.linejoin:
