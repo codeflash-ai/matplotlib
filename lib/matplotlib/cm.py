@@ -284,12 +284,12 @@ class ScalarMappable:
         """
         self._A = None
         self._norm = None  # So that the setter knows we're initializing.
-        self.set_norm(norm)  # The Normalize instance of this ScalarMappable.
         self.cmap = None  # So that the setter knows we're initializing.
-        self.set_cmap(cmap)  # The Colormap instance of this ScalarMappable.
         #: The last colorbar associated with this ScalarMappable. May be None.
         self.colorbar = None
         self.callbacks = cbook.CallbackRegistry(signals=["changed"])
+        self.set_norm(norm)  # The Normalize instance of this ScalarMappable.
+        self.set_cmap(cmap)  # The Colormap instance of this ScalarMappable.
 
     def _scale_norm(self, norm, vmin, vmax):
         """
