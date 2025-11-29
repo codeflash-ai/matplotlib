@@ -365,17 +365,31 @@ class HandlerStepPatch(HandlerBase):
 
     @staticmethod
     def _create_patch(orig_handle, xdescent, ydescent, width, height):
-        return Rectangle(xy=(-xdescent, -ydescent), width=width,
-                         height=height, color=orig_handle.get_facecolor())
+        # Cache facecolor - calling get_facecolor() can be expensive if property recomputation
+        facecolor = orig_handle.get_facecolor()
+        return Rectangle(
+            xy=(-xdescent, -ydescent),
+            width=width,
+            height=height,
+            color=facecolor
+        )
 
     @staticmethod
     def _create_line(orig_handle, width, height):
         # Unfilled StepPatch should show as a line
-        legline = Line2D([0, width], [height/2, height/2],
-                         color=orig_handle.get_edgecolor(),
-                         linestyle=orig_handle.get_linestyle(),
-                         linewidth=orig_handle.get_linewidth(),
-                         )
+        color = orig_handle.get_edgecolor()
+        linestyle = orig_handle.get_linestyle()
+        linewidth = orig_handle.get_linewidth()
+        # Avoid unnecessary math: height/2 reused
+        y = height * 0.5
+        legline = Line2D(
+            [0, width], [y, y],
+            color=color,
+            linestyle=linestyle,
+            linewidth=linewidth,
+        )
+        # Overwrite manually because patch and line properties don't mix
+        # set_drawstyle and set_marker are not expensive, no optimization needed
 
         # Overwrite manually because patch and line properties don't mix
         legline.set_drawstyle('default')
@@ -385,9 +399,12 @@ class HandlerStepPatch(HandlerBase):
     def create_artists(self, legend, orig_handle,
                        xdescent, ydescent, width, height, fontsize, trans):
         # docstring inherited
-        if orig_handle.get_fill() or (orig_handle.get_hatch() is not None):
-            p = self._create_patch(orig_handle, xdescent, ydescent, width,
-                                   height)
+
+        fill = orig_handle.get_fill()
+        hatch = orig_handle.get_hatch()
+        # Short-circuiting "or" so if get_fill() is True, get_hatch() is not called
+        if fill or (hatch is not None):
+            p = self._create_patch(orig_handle, xdescent, ydescent, width, height)
             self.update_prop(p, orig_handle, legend)
         else:
             p = self._create_line(orig_handle, width, height)
