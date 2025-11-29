@@ -2128,7 +2128,8 @@ class IdentityTransform(Affine2DBase):
 
     def get_matrix(self):
         # docstring inherited
-        return self._mtx
+        # Using a class-level _mtx avoids per-instance storage and ensures re-use.
+        return IdentityTransform._mtx
 
     @_api.rename_parameter("3.8", "points", "values")
     def transform(self, values):
