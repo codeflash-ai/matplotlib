@@ -1933,8 +1933,18 @@ class Affine2D(Affine2DBase):
 
         .
         """
-        return Affine2D(
-            np.array([a, c, e, b, d, f, 0.0, 0.0, 1.0], float).reshape((3, 3)))
+        # Preallocate and fill the matrix directly for efficiency
+        mat = np.empty((3, 3), dtype=float)
+        mat[0, 0] = a
+        mat[0, 1] = c
+        mat[0, 2] = e
+        mat[1, 0] = b
+        mat[1, 1] = d
+        mat[1, 2] = f
+        mat[2, 0] = 0.0
+        mat[2, 1] = 0.0
+        mat[2, 2] = 1.0
+        return Affine2D(mat)
 
     def get_matrix(self):
         """
