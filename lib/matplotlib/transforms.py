@@ -779,8 +779,24 @@ class Bbox(BboxBase):
         ___init__ = __init__
 
         def __init__(self, points, **kwargs):
-            self._check(points)
-            self.___init__(points, **kwargs)
+            """
+        Parameters
+        ----------
+        points : `~numpy.ndarray`
+            A (2, 2) array of the form ``[[x0, y0], [x1, y1]]``.
+        """
+            super().__init__(**kwargs)
+            points = np.asarray(points, float)
+            if points.shape != (2, 2):
+                raise ValueError('Bbox points must be of the form '
+                                 '"[[x0, y0], [x1, y1]]".')
+            self._points = points
+            self._minpos = _default_minpos.copy()
+            self._ignore = True
+            # it is helpful in some contexts to know if the bbox is a
+            # default or has been mutated; we store the orig points to
+            # support the mutated methods
+            self._points_orig = self._points.copy()
 
         def invalidate(self):
             self._check(self._points)
@@ -841,7 +857,8 @@ class Bbox(BboxBase):
         return format(self, '')
 
     def __repr__(self):
-        return 'Bbox([[{0.x0}, {0.y0}], [{0.x1}, {0.y1}]])'.format(self)
+        points = self._points
+        return f'Bbox([[{points[0,0]}, {points[0,1]}], [{points[1,0]}, {points[1,1]}]])'
 
     def ignore(self, value):
         """
