@@ -775,31 +775,41 @@ class HandlerPolyCollection(HandlerBase):
     `~.Axes.stackplot`.
     """
     def _update_prop(self, legend_handle, orig_handle):
-        def first_color(colors):
-            if colors.size == 0:
-                return (0, 0, 0, 0)
-            return tuple(colors[0])
-
-        def get_first(prop_array):
-            if len(prop_array):
-                return prop_array[0]
-            else:
-                return None
-
+        # Move helper functions outside loop and inline them for efficiency.
         # orig_handle is a PolyCollection and legend_handle is a Patch.
         # Directly set Patch color attributes (must be RGBA tuples).
-        legend_handle._facecolor = first_color(orig_handle.get_facecolor())
-        legend_handle._edgecolor = first_color(orig_handle.get_edgecolor())
+        
+        # Get face and edge color arrays once
+        facecolors = orig_handle.get_facecolor()
+        edgecolors = orig_handle.get_edgecolor()
+
+        if facecolors.size == 0:
+            legend_handle._facecolor = (0, 0, 0, 0)
+        else:
+            legend_handle._facecolor = tuple(facecolors[0])
+
+        if edgecolors.size == 0:
+            legend_handle._edgecolor = (0, 0, 0, 0)
+        else:
+            legend_handle._edgecolor = tuple(edgecolors[0])
+
         legend_handle._original_facecolor = orig_handle._original_facecolor
         legend_handle._original_edgecolor = orig_handle._original_edgecolor
         legend_handle._fill = orig_handle.get_fill()
         legend_handle._hatch = orig_handle.get_hatch()
         # Hatch color is anomalous in having no getters and setters.
         legend_handle._hatch_color = orig_handle._hatch_color
-        # Setters are fine for the remaining attributes.
-        legend_handle.set_linewidth(get_first(orig_handle.get_linewidths()))
-        legend_handle.set_linestyle(get_first(orig_handle.get_linestyles()))
-        legend_handle.set_transform(get_first(orig_handle.get_transforms()))
+
+        # Avoid function call overhead, get arrays once then select item
+        linewidths = orig_handle.get_linewidths()
+        legend_handle.set_linewidth(linewidths[0] if linewidths else None)
+
+        linestyles = orig_handle.get_linestyles()
+        legend_handle.set_linestyle(linestyles[0] if linestyles else None)
+
+        transforms = orig_handle.get_transforms()
+        legend_handle.set_transform(transforms[0] if transforms else None)
+
         legend_handle.set_figure(orig_handle.get_figure())
         # Alpha is already taken into account by the color attributes.
 
