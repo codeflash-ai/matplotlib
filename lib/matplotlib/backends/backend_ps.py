@@ -82,7 +82,17 @@ def _get_papertype(w, h):
 
 
 def _nums_to_str(*args, sep=" "):
-    return sep.join(f"{arg:1.3f}".rstrip("0").rstrip(".") for arg in args)
+    # Fast-path: avoid format & rstrip if all ints (most common for dashes)
+    parts = []
+    append = parts.append
+    for arg in args:
+        if isinstance(arg, int):
+            append(str(arg))
+        else:
+            # Only format floats (avoids unnecessary string conversion for int)
+            s = f"{arg:1.3f}".rstrip("0").rstrip(".")
+            append(s if s else "0")
+    return sep.join(parts)
 
 
 def _move_path_to_path_or_stream(src, dst):
@@ -326,14 +336,32 @@ class RendererPS(_backend_pdf_ps.RendererPDFPSBase):
                 self.linecap = linecap
 
     def set_linedash(self, offset, seq, store=True):
-        if self.linedash is not None:
-            oldo, oldseq = self.linedash
-            if np.array_equal(seq, oldseq) and oldo == offset:
+        # Fast exit if state is unchanged; np.array_equal is costly for big arrays
+        ld = self.linedash
+        if ld is not None:
+            oldo, oldseq = ld
+            # Fast checks for most common cases
+            if type(seq) is type(oldseq) and seq is oldseq and oldo == offset:
                 return
+            # Small lists/tuples: fall back to cheap equality if possible
+            if (
+                hasattr(seq, "__len__") and hasattr(oldseq, "__len__") and
+                len(seq) == len(oldseq) and
+                all(a == b for a, b in zip(seq, oldseq))
+                and oldo == offset
+            ):
+                return
+            # Only use np.array_equal if one or both are numpy arrays
+            if (hasattr(seq, "dtype") or hasattr(oldseq, "dtype")):
+                if np.array_equal(seq, oldseq) and oldo == offset:
+                    return
 
-        self._pswriter.write(f"[{_nums_to_str(*seq)}] {_nums_to_str(offset)} setdash\n"
-                             if seq is not None and len(seq) else
-                             "[] 0 setdash\n")
+        # Use cheap check for empty/None sequence first
+        if seq is not None and len(seq):
+            s = f"[{_nums_to_str(*seq)}] {_nums_to_str(offset)} setdash\n"
+        else:
+            s = "[] 0 setdash\n"
+        self._pswriter.write(s)
         if store:
             self.linedash = (offset, seq)
 
