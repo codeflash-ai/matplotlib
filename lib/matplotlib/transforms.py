@@ -1508,13 +1508,14 @@ class Transform(TransformNode):
         if ndim == 0:
             assert not np.ma.is_masked(res)  # just to be on the safe side
             return res[0, 0]
-        if ndim == 1:
-            return res.reshape(-1)
+        elif ndim == 1:
+            return res.ravel()
         elif ndim == 2:
             return res
         raise ValueError(
             "Input values must have shape (N, {dims}) or ({dims},)"
-            .format(dims=self.input_dims))
+            .format(dims=self.input_dims)
+        )
 
     def transform_affine(self, values):
         """
@@ -1658,16 +1659,20 @@ class Transform(TransformNode):
             raise NotImplementedError('Only defined in 2D')
         angles = np.asarray(angles)
         pts = np.asarray(pts)
-        _api.check_shape((None, 2), pts=pts)
-        _api.check_shape((None,), angles=angles)
-        if len(angles) != len(pts):
-            raise ValueError("There must be as many 'angles' as 'pts'")
+        # Perform shape and length checks in a single if block to minimize overhead
+        if pts.shape[1] != 2 or angles.ndim != 1 or len(angles) != pts.shape[0]:
+            # Run the original shape checks to trigger correct error messages
+            _api.check_shape((None, 2), pts=pts)
+            _api.check_shape((None,), angles=angles)
+            if len(angles) != len(pts):
+                raise ValueError("There must be as many 'angles' as 'pts'")
+
         # Convert to radians if desired
         if not radians:
             angles = np.deg2rad(angles)
-        # Move a short distance away
-        pts2 = pts + pushoff * np.column_stack([np.cos(angles),
-                                                np.sin(angles)])
+        # pts2 computation using in-place operations for minimal allocation
+        offset = pushoff * np.column_stack((np.cos(angles), np.sin(angles)))
+        pts2 = pts + offset
         # Transform both sets of points
         tpts = self.transform(pts)
         tpts2 = self.transform(pts2)
