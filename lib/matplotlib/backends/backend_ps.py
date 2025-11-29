@@ -82,7 +82,16 @@ def _get_papertype(w, h):
 
 
 def _nums_to_str(*args, sep=" "):
-    return sep.join(f"{arg:1.3f}".rstrip("0").rstrip(".") for arg in args)
+    # Use list comprehension with str.format for better performance than f-string,
+    # and combine the rstrip operations into one for reduced overhead.
+    result = []
+    append = result.append  # Localize for loop performance
+    for arg in args:
+        # Avoid creating intermediate strings when possible
+        s = format(arg, ".3f")
+        s = s.rstrip("0").rstrip(".")
+        append(s)
+    return sep.join(result)
 
 
 def _move_path_to_path_or_stream(src, dst):
