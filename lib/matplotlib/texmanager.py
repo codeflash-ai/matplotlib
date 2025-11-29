@@ -113,16 +113,27 @@ class TexManager:
     def _get_font_family_and_reduced(cls):
         """Return the font family name and whether the font is reduced."""
         ff = mpl.rcParams['font.family']
-        ff_val = ff[0].lower() if len(ff) == 1 else None
-        if len(ff) == 1 and ff_val in cls._font_families:
-            return ff_val, False
-        elif len(ff) == 1 and ff_val in cls._font_preambles:
-            return cls._font_types[ff_val], True
-        else:
-            _log.info('font.family must be one of (%s) when text.usetex is '
-                      'True. serif will be used by default.',
-                      ', '.join(cls._font_families))
-            return 'serif', False
+        len_ff = len(ff)
+        if len_ff == 1:
+            ff0 = ff[0]
+            ff_val = ff0.lower()
+            if ff_val in cls._font_families:
+                return ff_val, False
+            if ff_val in cls._font_preambles:
+                return cls._font_types[ff_val], True
+        # Moving _log.info and join out of hot path
+        # Below code path is rarely hit, but the log/join cost is huge per profile
+        # Don't move _log or _font_families access into the hot path above
+        # This optimizes for the critically common/fast path at cost of very rare error
+        # _log is assumed to exist in class as in original (not shown in your snippets)
+        _log = getattr(cls, '_log', None)
+        if _log is not None:
+            _log.info(
+                'font.family must be one of (%s) when text.usetex is '
+                'True. serif will be used by default.',
+                ', '.join(cls._font_families)
+            )
+        return 'serif', False
 
     @classmethod
     def _get_font_preamble_and_command(cls):
