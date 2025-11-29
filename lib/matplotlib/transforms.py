@@ -779,8 +779,24 @@ class Bbox(BboxBase):
         ___init__ = __init__
 
         def __init__(self, points, **kwargs):
-            self._check(points)
-            self.___init__(points, **kwargs)
+            """
+        Parameters
+        ----------
+        points : `~numpy.ndarray`
+            A (2, 2) array of the form ``[[x0, y0], [x1, y1]]``.
+        """
+            super().__init__(**kwargs)
+            points = np.asarray(points, float)
+            if points.shape != (2, 2):
+                raise ValueError('Bbox points must be of the form '
+                                 '"[[x0, y0], [x1, y1]]".')
+            self._points = points
+            self._minpos = _default_minpos.copy()
+            self._ignore = True
+            # it is helpful in some contexts to know if the bbox is a
+            # default or has been mutated; we store the orig points to
+            # support the mutated methods
+            self._points_orig = self._points.copy()
 
         def invalidate(self):
             self._check(self._points)
@@ -795,7 +811,13 @@ class Bbox(BboxBase):
     @staticmethod
     def unit():
         """Create a new unit `Bbox` from (0, 0) to (1, 1)."""
-        return Bbox([[0, 0], [1, 1]])
+        # Precompute the unit points as a constant and reuse
+        # This avoids redundant list and array conversion in every call.
+        # The value is immutable and never changes.
+        if not hasattr(Bbox, '_UNIT_POINTS'):
+            Bbox._UNIT_POINTS = np.array([[0.0, 0.0], [1.0, 1.0]], dtype=float)
+        # Use .copy() to avoid input mutation side effects in __init__
+        return Bbox(Bbox._UNIT_POINTS.copy())
 
     @staticmethod
     def null():
