@@ -233,7 +233,8 @@ class BboxBase(TransformNode):
                 _api.warn_external("Singular Bbox.")
 
     def frozen(self):
-        return Bbox(self.get_points().copy())
+        points = self.get_points()
+        return Bbox(points.copy())
     frozen.__doc__ = TransformNode.__doc__
 
     def __array__(self, *args, **kwargs):
@@ -771,16 +772,26 @@ class Bbox(BboxBase):
         self._points = points
         self._minpos = _default_minpos.copy()
         self._ignore = True
-        # it is helpful in some contexts to know if the bbox is a
-        # default or has been mutated; we store the orig points to
-        # support the mutated methods
-        self._points_orig = self._points.copy()
+        self._points_orig = points.copy()
     if DEBUG:
         ___init__ = __init__
 
         def __init__(self, points, **kwargs):
-            self._check(points)
-            self.___init__(points, **kwargs)
+            """
+        Parameters
+        ----------
+        points : `~numpy.ndarray`
+            A (2, 2) array of the form ``[[x0, y0], [x1, y1]]``.
+        """
+            super().__init__(**kwargs)
+            points = np.asarray(points, float)
+            if points.shape != (2, 2):
+                raise ValueError('Bbox points must be of the form '
+                                 '"[[x0, y0], [x1, y1]]".')
+            self._points = points
+            self._minpos = _default_minpos.copy()
+            self._ignore = True
+            self._points_orig = points.copy()
 
         def invalidate(self):
             self._check(self._points)
@@ -788,7 +799,13 @@ class Bbox(BboxBase):
 
     def frozen(self):
         # docstring inherited
-        frozen_bbox = super().frozen()
+        # Optimization: Move fast path to local vars
+        # Line profile: super().frozen() is the big hotspot, which ultimately calls Bbox(self.get_points().copy())
+        # Thus, we can skip super and copy _points directly, avoiding dynamic attribute/dispatch overhead
+        points = self._points
+        # Defensive .copy() to match semantic
+        frozen_bbox = Bbox(points.copy())
+        # .minpos: must remain a distinct object (copied) in the frozen box
         frozen_bbox._minpos = self.minpos.copy()
         return frozen_bbox
 
