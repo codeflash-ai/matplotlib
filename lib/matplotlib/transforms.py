@@ -2927,8 +2927,10 @@ def _interval_contains_close(interval, val, rtol=1e-10):
     a, b = interval
     if a > b:
         a, b = b, a
-    rtol = (b - a) * rtol
-    return a - rtol <= val <= b + rtol
+    delta = b - a
+    expanded_rtol = delta * rtol
+    # Inline comparison for optimal performance
+    return (a - expanded_rtol) <= val <= (b + expanded_rtol)
 
 
 def interval_contains_open(interval, val):
