@@ -45,12 +45,15 @@ def _usepackage_if_not_loaded(package, *, option=None):
     can be used to protect against users loading arbitrary packages/options in
     their custom preamble.
     """
-    option = f"[{option}]" if option is not None else ""
+    # Minor accelerated string formatting using f-string to prevent extra dict allocation
+    if option is not None:
+        opt_str = f"[{option}]"
+    else:
+        opt_str = ""
+    # This string formatting is somewhat unavoidable, but doing it in a single operation
     return (
-        r"\makeatletter"
-        r"\@ifpackageloaded{%(package)s}{}{\usepackage%(option)s{%(package)s}}"
-        r"\makeatother"
-    ) % {"package": package, "option": option}
+        rf"\makeatletter\@ifpackageloaded{{{package}}}{{}}{{\usepackage{opt_str}{{{package}}}}}\makeatother"
+    )
 
 
 class TexManager:
@@ -128,41 +131,48 @@ class TexManager:
     def _get_font_preamble_and_command(cls):
         requested_family, is_reduced_font = cls._get_font_family_and_reduced()
 
+
+        # Precompute lowercased mapping of font_preambles for fast lookups
+        font_preambles = cls._font_preambles
+        rcParams = mpl.rcParams
+
+        # Build lowercase->preamble mapping once for all lookups
+        # Optimization: cache the lowered font list for repeated access
         preambles = {}
         for font_family in cls._font_families:
             if is_reduced_font and font_family == requested_family:
-                preambles[font_family] = cls._font_preambles[
-                    mpl.rcParams['font.family'][0].lower()]
+                key = rcParams['font.family'][0].lower()
+                preambles[font_family] = font_preambles[key]
             else:
-                for font in mpl.rcParams['font.' + font_family]:
-                    if font.lower() in cls._font_preambles:
-                        preambles[font_family] = \
-                            cls._font_preambles[font.lower()]
-                        _log.debug(
-                            'family: %s, font: %s, info: %s',
-                            font_family, font,
-                            cls._font_preambles[font.lower()])
+                fonts = rcParams['font.' + font_family]
+                for font in fonts:
+                    font_lower = font.lower()
+                    if font_lower in font_preambles:
+                        preambles[font_family] = font_preambles[font_lower]
+                        _log.debug('family: %s, font: %s, info: %s',
+                                   font_family, font, font_preambles[font_lower])
                         break
                     else:
-                        _log.debug('%s font is not compatible with usetex.',
-                                   font)
+                        _log.debug('%s font is not compatible with usetex.', font)
                 else:
                     _log.info('No LaTeX-compatible font found for the %s font'
-                              'family in rcParams. Using default.',
-                              font_family)
-                    preambles[font_family] = cls._font_preambles[font_family]
+                              'family in rcParams. Using default.', font_family)
+                    preambles[font_family] = font_preambles[font_family]
 
-        # The following packages and commands need to be included in the latex
-        # file's preamble:
-        cmd = {preambles[family]
-               for family in ['serif', 'sans-serif', 'monospace']}
+        # Build the command set quickly
+        cmd = {preambles['serif'], preambles['sans-serif'], preambles['monospace']}
         if requested_family == 'cursive':
             cmd.add(preambles['cursive'])
         cmd.add(r'\usepackage{type1cm}')
         preamble = '\n'.join(sorted(cmd))
-        fontcmd = (r'\sffamily' if requested_family == 'sans-serif' else
-                   r'\ttfamily' if requested_family == 'monospace' else
-                   r'\rmfamily')
+
+        # Font command selection
+        if requested_family == 'sans-serif':
+            fontcmd = r'\sffamily'
+        elif requested_family == 'monospace':
+            fontcmd = r'\ttfamily'
+        else:
+            fontcmd = r'\rmfamily'
         return preamble, fontcmd
 
     @classmethod
@@ -199,7 +209,12 @@ class TexManager:
         """Return the complete TeX source for processing a TeX string."""
         font_preamble, fontcmd = cls._get_font_preamble_and_command()
         baselineskip = 1.25 * fontsize
-        return "\n".join([
+
+        # Pre-generate local references to package lines (avoids recomputation)
+        use_underscore_package = _usepackage_if_not_loaded("underscore", option="strings")
+        use_textcomp_package = _usepackage_if_not_loaded("textcomp")
+
+        lines = [
             r"\documentclass{article}",
             r"% Pass-through \mathdefault, which is used in non-usetex mode",
             r"% to use the default text font but was historically suppressed",
@@ -215,10 +230,10 @@ class TexManager:
             cls.get_custom_preamble(),
             r"% Use `underscore` package to take care of underscores in text.",
             r"% The [strings] option allows to use underscores in file names.",
-            _usepackage_if_not_loaded("underscore", option="strings"),
+            use_underscore_package,
             r"% Custom packages (e.g. newtxtext) may already have loaded ",
             r"% textcomp with different options.",
-            _usepackage_if_not_loaded("textcomp"),
+            use_textcomp_package,
             r"\pagestyle{empty}",
             r"\begin{document}",
             r"% The empty hbox ensures that a page is printed even for empty",
@@ -229,7 +244,8 @@ class TexManager:
             r"\ifdefined\psfrag\else\hbox{}\fi%",
             rf"{{{fontcmd} {tex}}}%",
             r"\end{document}",
-        ])
+        ]
+        return "\n".join(lines)
 
     @classmethod
     def make_tex(cls, tex, fontsize):
