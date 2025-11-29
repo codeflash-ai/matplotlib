@@ -34,6 +34,8 @@ from matplotlib.transforms import Affine2D
 from matplotlib.backends.backend_mixed import MixedModeRenderer
 from . import _backend_pdf_ps
 
+_LINECAP_MAP = {'butt': 0, 'round': 1, 'projecting': 2, 0: 0, 1: 1, 2: 2}
+
 
 _log = logging.getLogger(__name__)
 debugPS = False
@@ -315,8 +317,7 @@ class RendererPS(_backend_pdf_ps.RendererPDFPSBase):
     @staticmethod
     def _linecap_cmd(linecap):
         # Support for directly passing integer values is for backcompat.
-        linecap = {'butt': 0, 'round': 1, 'projecting': 2, 0: 0, 1: 1, 2: 2}[
-            linecap]
+        linecap = _LINECAP_MAP[linecap]
         return f"{linecap:d} setlinecap\n"
 
     def set_linecap(self, linecap, store=True):
