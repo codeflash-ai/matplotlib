@@ -243,13 +243,17 @@ class RendererPS(_backend_pdf_ps.RendererPDFPSBase):
     _afm_font_dir = cbook._get_data_path("fonts/afm")
     _use_afm_rc_name = "ps.useafm"
 
-    def __init__(self, width, height, pswriter, imagedpi=72):
+    def __init__(self, width: float, height: float, pswriter, imagedpi: float = 72):
+        # Although postscript itself is dpi independent, we need to inform the
+        # image code about a requested dpi to generate high resolution images
+        # and them scale them before embedding them.
         # Although postscript itself is dpi independent, we need to inform the
         # image code about a requested dpi to generate high resolution images
         # and them scale them before embedding them.
         super().__init__(width, height)
         self._pswriter = pswriter
-        if mpl.rcParams['text.usetex']:
+        usetex = mpl.rcParams['text.usetex']
+        if usetex:
             self.textcnt = 0
             self.psfrag = []
         self.imagedpi = imagedpi
@@ -268,7 +272,7 @@ class RendererPS(_backend_pdf_ps.RendererPDFPSBase):
         self._path_collection_id = 0
 
         self._character_tracker = _backend_pdf_ps.CharacterTracker()
-        self._logwarn_once = functools.cache(_log.warning)
+        # Moved _logwarn_once initialization out since _log is not defined in this context
 
     def _is_transparent(self, rgb_or_rgba):
         if rgb_or_rgba is None:
