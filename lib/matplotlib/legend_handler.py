@@ -653,7 +653,8 @@ class HandlerStem(HandlerNpointsYoffsets):
 
     def get_ydata(self, legend, xdescent, ydescent, width, height, fontsize):
         if self._yoffsets is None:
-            ydata = height * (0.5 * legend._scatteryoffsets + 0.5)
+            half_height = 0.5 * height
+            ydata = half_height * legend._scatteryoffsets + half_height
         else:
             ydata = height * np.asarray(self._yoffsets)
 
