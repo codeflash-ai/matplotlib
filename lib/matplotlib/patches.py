@@ -4576,17 +4576,26 @@ class ConnectionPatch(FancyArrowPatch):
         s0 = s  # For the error message, if needed.
         if axes is None:
             axes = self.axes
-        xy = np.array(xy)
         if s in ["figure points", "axes points"]:
-            xy *= self.figure.dpi / 72
+            # eager scalar conversion avoids unnecessary array ops
+            x, y = xy
+            factor = self.figure.dpi / 72
+            x *= factor
+            y *= factor
             s = s.replace("points", "pixels")
         elif s == "figure fraction":
             s = self.figure.transFigure
+            x, y = xy
         elif s == "subfigure fraction":
             s = self.figure.transSubfigure
+            x, y = xy
         elif s == "axes fraction":
             s = axes.transAxes
-        x, y = xy
+            x, y = xy
+        else:
+            x, y = xy
+
+        # Fast switch, minimal branching, avoid redundant lookups
 
         if s == 'data':
             trans = axes.transData
@@ -4596,9 +4605,11 @@ class ConnectionPatch(FancyArrowPatch):
         elif s == 'offset points':
             if self.xycoords == 'offset points':  # prevent recursion
                 return self._get_xy(self.xy, 'data')
-            return (
-                self._get_xy(self.xy, self.xycoords)  # converted data point
-                + xy * self.figure.dpi / 72)  # converted offset
+            base_xy = self._get_xy(self.xy, self.xycoords)
+            factor = self.figure.dpi / 72
+            offset = (x * factor, y * factor)
+            # direct tuple addition for speed
+            return (base_xy[0] + offset[0], base_xy[1] + offset[1])
         elif s == 'polar':
             theta, r = x, y
             x = r * np.cos(theta)
@@ -4624,7 +4635,8 @@ class ConnectionPatch(FancyArrowPatch):
             y = bb.y0 + y if y >= 0 else bb.y1 + y
             return x, y
         elif isinstance(s, transforms.Transform):
-            return s.transform(xy)
+            # For transforms, ensure using array only if necessary
+            return s.transform((x, y))
         else:
             raise ValueError(f"{s0} is not a valid coordinate transformation")
 
@@ -4677,19 +4689,13 @@ class ConnectionPatch(FancyArrowPatch):
 
         if b or (b is None and self.coords1 == "data"):
             xy_pixel = self._get_xy(self.xy1, self.coords1, self.axesA)
-            if self.axesA is None:
-                axes = self.axes
-            else:
-                axes = self.axesA
+            axes = self.axesA if self.axesA is not None else self.axes
             if not axes.contains_point(xy_pixel):
                 return False
 
         if b or (b is None and self.coords2 == "data"):
             xy_pixel = self._get_xy(self.xy2, self.coords2, self.axesB)
-            if self.axesB is None:
-                axes = self.axes
-            else:
-                axes = self.axesB
+            axes = self.axesB if self.axesB is not None else self.axes
             if not axes.contains_point(xy_pixel):
                 return False
 
