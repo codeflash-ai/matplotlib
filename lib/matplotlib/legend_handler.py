@@ -59,6 +59,7 @@ class HandlerBase:
     width, height) that are scaled by fontsize if necessary.
 
     """
+
     def __init__(self, xpad=0., ypad=0., update_func=None):
         """
         Parameters
@@ -94,11 +95,14 @@ class HandlerBase:
     def adjust_drawing_area(self, legend, orig_handle,
                             xdescent, ydescent, width, height, fontsize,
                             ):
-        xdescent = xdescent - self._xpad * fontsize
-        ydescent = ydescent - self._ypad * fontsize
-        width = width - self._xpad * fontsize
-        height = height - self._ypad * fontsize
-        return xdescent, ydescent, width, height
+        xpad_font = self._xpad * fontsize
+        ypad_font = self._ypad * fontsize
+        return (
+            xdescent - xpad_font,
+            ydescent - ypad_font,
+            width - xpad_font,
+            height - ypad_font,
+        )
 
     def legend_artist(self, legend, orig_handle,
                       fontsize, handlebox):
