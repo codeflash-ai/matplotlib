@@ -665,10 +665,20 @@ class BboxBase(TransformNode):
         Return the intersection of *bbox1* and *bbox2* if they intersect, or
         None if they don't.
         """
-        x0 = np.maximum(bbox1.xmin, bbox2.xmin)
-        x1 = np.minimum(bbox1.xmax, bbox2.xmax)
-        y0 = np.maximum(bbox1.ymin, bbox2.ymin)
-        y1 = np.minimum(bbox1.ymax, bbox2.ymax)
+        # Use simple max/min for scalars to avoid numpy overhead
+        # Fall back to numpy for array-like inputs to maintain nan propagation
+        try:
+            # Fast path for scalar values
+            x0 = bbox1.xmin if bbox1.xmin >= bbox2.xmin else bbox2.xmin
+            x1 = bbox1.xmax if bbox1.xmax <= bbox2.xmax else bbox2.xmax
+            y0 = bbox1.ymin if bbox1.ymin >= bbox2.ymin else bbox2.ymin
+            y1 = bbox1.ymax if bbox1.ymax <= bbox2.ymax else bbox2.ymax
+        except (TypeError, AttributeError):
+            # Fall back to numpy for array-like inputs
+            x0 = np.maximum(bbox1.xmin, bbox2.xmin)
+            x1 = np.minimum(bbox1.xmax, bbox2.xmax)
+            y0 = np.maximum(bbox1.ymin, bbox2.ymin)
+            y1 = np.minimum(bbox1.ymax, bbox2.ymax)
         return Bbox([[x0, y0], [x1, y1]]) if x0 <= x1 and y0 <= y1 else None
 
 
