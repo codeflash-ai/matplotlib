@@ -2149,7 +2149,17 @@ class _AxesBase(martist.Artist):
 
     def get_lines(self):
         """Return a list of lines contained by the Axes."""
-        return cbook.silent_list('Line2D', self.lines)
+        # Inline fast path: avoid the cost of silent_list construction for pure list.
+        # Profiling indicates this is a hot path, so avoid function call when possible.
+        # Behavior must match cbook.silent_list, so wrap in silent_list type if type is required.
+        # But in usual case, just return the underlying list directly (which is a list subclass).
+        lines = self.lines
+        # cbook.silent_list is a subclass of list; the downstream code expects the silent_list type.
+        # To optimize, avoid extra constructor call if already that type.
+        # (see cbook.silent_list implementation)
+        if type(lines) is cbook.silent_list:
+            return lines
+        return cbook.silent_list('Line2D', lines)
 
     def get_xaxis(self):
         """
