@@ -313,7 +313,15 @@ class _process_plot_var_args:
         Otherwise, don't advance the property cycle, and return an empty dict.
         """
         defaults = self._cycler_items[self._idx]
-        if any(kw.get(k, None) is None for k in {*defaults} - ignore):
+        skip_keys = defaults.keys() & ignore
+        keys_to_check = defaults.keys() - skip_keys
+        # Use all() instead of any() to minimize .get lookups when possible
+        missing = False
+        for k in keys_to_check:
+            if kw.get(k, None) is None:
+                missing = True
+                break
+        if missing:
             self._idx = (self._idx + 1) % len(self._cycler_items)  # Advance cycler.
             # Return a new dict to avoid exposing _cycler_items entries to mutation.
             return {k: v for k, v in defaults.items() if k not in ignore}
@@ -325,9 +333,10 @@ class _process_plot_var_args:
         Add to the dict *kw* the entries in the dict *default* that are absent
         or set to None in *kw*.
         """
-        for k in defaults:
+        # Use dict comprehension for lookups, but since the operation is mutation and needs to preserve side effects, keep loop structure
+        for k, v in defaults.items():
             if kw.get(k, None) is None:
-                kw[k] = defaults[k]
+                kw[k] = v
 
     def _makeline(self, axes, x, y, kw, kwargs):
         kw = {**kw, **kwargs}  # Don't modify the original kw.
@@ -351,10 +360,16 @@ class _process_plot_var_args:
         # *user* explicitly specifies a marker which should be an error.
         # We also want to prevent advancing the cycler if there are no
         # defaults needed after ignoring the given properties.
-        ignores = ({'marker', 'markersize', 'markeredgecolor',
-                    'markerfacecolor', 'markeredgewidth'}
-                   # Also ignore anything provided by *kwargs*.
-                   | {k for k, v in kwargs.items() if v is not None})
+        # Use set union efficiently
+        marker_ignore = {'marker', 'markersize', 'markeredgecolor',
+                         'markerfacecolor', 'markeredgewidth'}
+        kwargs_ignore = {k for k, v in kwargs.items() if v is not None}
+        ignores = marker_ignore | kwargs_ignore
+
+        # Only using the first dictionary to use as basis
+        # for getting defaults for back-compat reasons.
+        # Doing it with both seems to mess things up in
+        # various places (probably due to logic bugs elsewhere).
 
         # Only using the first dictionary to use as basis
         # for getting defaults for back-compat reasons.
