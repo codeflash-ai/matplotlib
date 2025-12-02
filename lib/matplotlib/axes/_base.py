@@ -4690,20 +4690,23 @@ def _draw_rasterized(figure, artists, renderer):
     None
 
     """
-    class _MinimalArtist:
-        def get_rasterized(self):
-            return True
+    if not hasattr(_draw_rasterized, '_MinimalArtist'):
+        class _MinimalArtist:
+            def get_rasterized(self):
+                return True
 
-        def get_agg_filter(self):
-            return None
+            def get_agg_filter(self):
+                return None
 
-        def __init__(self, figure, artists):
-            self.figure = figure
-            self.artists = artists
+            def __init__(self, figure, artists):
+                self.figure = figure
+                self.artists = artists
 
-        @martist.allow_rasterization
-        def draw(self, renderer):
-            for a in self.artists:
-                a.draw(renderer)
+            @martist.allow_rasterization
+            def draw(self, renderer):
+                for a in self.artists:
+                    a.draw(renderer)
 
-    return _MinimalArtist(figure, artists).draw(renderer)
+        _draw_rasterized._MinimalArtist = _MinimalArtist
+
+    return _draw_rasterized._MinimalArtist(figure, artists).draw(renderer)
