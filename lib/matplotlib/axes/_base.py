@@ -313,12 +313,20 @@ class _process_plot_var_args:
         Otherwise, don't advance the property cycle, and return an empty dict.
         """
         defaults = self._cycler_items[self._idx]
-        if any(kw.get(k, None) is None for k in {*defaults} - ignore):
-            self._idx = (self._idx + 1) % len(self._cycler_items)  # Advance cycler.
-            # Return a new dict to avoid exposing _cycler_items entries to mutation.
-            return {k: v for k, v in defaults.items() if k not in ignore}
+        if ignore:
+            keys_to_check = [k for k in defaults if k not in ignore]
         else:
-            return {}
+            keys_to_check = defaults
+        
+        for k in keys_to_check:
+            if kw.get(k, None) is None:
+                self._idx = (self._idx + 1) % len(self._cycler_items)  # Advance cycler.
+                # Return a new dict to avoid exposing _cycler_items entries to mutation.
+                if ignore:
+                    return {k: v for k, v in defaults.items() if k not in ignore}
+                else:
+                    return defaults.copy()
+        return {}
 
     def _setdefaults(self, defaults, kw):
         """
