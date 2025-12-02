@@ -3606,7 +3606,8 @@ class _AxesBase(martist.Artist):
         The x-axis may be inverted, in which case the *left* value will
         be greater than the *right* value.
         """
-        return tuple(self.viewLim.intervalx)
+        intervalx = self.viewLim.intervalx
+        return (intervalx[0], intervalx[1])
 
     def _validate_converted_limits(self, limit, convert):
         """
