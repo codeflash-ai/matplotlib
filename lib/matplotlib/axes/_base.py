@@ -1005,14 +1005,27 @@ class _AxesBase(martist.Artist):
         ----------
         which : {'grid', 'tick1', 'tick2'}
         """
+        cache = getattr(self, "_yaxis_spine_transform_cache", None)
+        if cache is None:
+            cache = {}
+            self._yaxis_spine_transform_cache = cache
+
         if which == 'grid':
             return self._yaxis_transform
         elif which == 'tick1':
             # for cartesian projection, this is bottom spine
-            return self.spines.left.get_spine_transform()
+            if "left" in cache:
+                return cache["left"]
+            t = self.spines.left.get_spine_transform()
+            cache["left"] = t
+            return t
         elif which == 'tick2':
             # for cartesian projection, this is top spine
-            return self.spines.right.get_spine_transform()
+            if "right" in cache:
+                return cache["right"]
+            t = self.spines.right.get_spine_transform()
+            cache["right"] = t
+            return t
         else:
             raise ValueError(f'unknown value for which: {which!r}')
 
