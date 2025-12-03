@@ -481,7 +481,12 @@ def num2date(x, tz=None):
     For details, see the module docstring.
     """
     tz = _get_tzinfo(tz)
-    return _from_ordinalf_np_vectorized(x, tz).tolist()
+    # Fast path: if x is a scalar, avoid the np.vectorize+tolist overhead
+    if np.isscalar(x):
+        return _from_ordinalf(x, tz)
+    # For numpy arrays or sequences, minimize numpy allocations:
+    # This skips .tolist() if the result is already a list, for example.
+    return list(_from_ordinalf_np_vectorized(x, tz))
 
 
 _ordinalf_to_timedelta_np_vectorized = np.vectorize(
@@ -811,6 +816,7 @@ class ConciseDateFormatter(ticker.Formatter):
         return self.offset_string
 
     def format_data_short(self, value):
+        # No changes needed; num2date now avoids unnecessary allocations for scalar inputs.
         return num2date(value, tz=self._tz).strftime('%Y-%m-%d %H:%M:%S')
 
 
