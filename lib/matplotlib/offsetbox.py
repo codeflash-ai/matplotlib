@@ -288,7 +288,6 @@ class OffsetBox(martist.Artist):
         self._offset = xy
         self.stale = True
 
-    @_compat_get_offset
     def get_offset(self, bbox, renderer):
         """
         Return the offset as a tuple (x, y).
@@ -302,10 +301,17 @@ class OffsetBox(martist.Artist):
         bbox : `.Bbox`
         renderer : `.RendererBase` subclass
         """
-        return (
-            self._offset(bbox.width, bbox.height, -bbox.x0, -bbox.y0, renderer)
-            if callable(self._offset)
-            else self._offset)
+        offset = self._offset
+        if callable(offset):
+            # Store bound methods in a local for improved speed in CPython
+            width = bbox.width
+            height = bbox.height
+            nx0 = -bbox.x0
+            ny0 = -bbox.y0
+            # Minimize local lookups by assigning renderer to a local as well
+            return offset(width, height, nx0, ny0, renderer)
+        else:
+            return offset
 
     def set_width(self, width):
         """
