@@ -1137,6 +1137,16 @@ class RRuleLocator(DateLocator):
         super().__init__(tz)
         self.rule = o
 
+        # Cache the reference to the _interval for faster repeated access
+        rrule = getattr(o, '_rrule', None)
+        self._interval_ref = None
+        if rrule is not None:
+            # rrule is already present on o
+            try:
+                self._interval_ref = rrule._interval
+            except AttributeError:
+                pass
+
     def __call__(self):
         # if no data have been set, this will tank with a ValueError
         try:
@@ -1203,6 +1213,9 @@ class RRuleLocator(DateLocator):
             return -1  # or should this just return '1'?
 
     def _get_interval(self):
+        if self._interval_ref is not None:
+            return self._interval_ref
+        # Fallback for objects where _rrule or _interval may not have been present at __init__
         return self.rule._rrule._interval
 
 
