@@ -504,7 +504,14 @@ def num2timedelta(x):
     -------
     `datetime.timedelta` or list[`datetime.timedelta`]
     """
-    return _ordinalf_to_timedelta_np_vectorized(x).tolist()
+    if isinstance(x, (float, int)):
+        return datetime.timedelta(days=x)
+    if isinstance(x, np.ndarray):
+        return [datetime.timedelta(days=val) for val in x.flat]
+    try:
+        return [datetime.timedelta(days=val) for val in x]
+    except TypeError:
+        return _ordinalf_to_timedelta_np_vectorized(x).tolist()
 
 
 def drange(dstart, dend, delta):
