@@ -206,8 +206,11 @@ class LogTransform(Transform):
         if base <= 0 or base == 1:
             raise ValueError('The log base cannot be <= 0 or == 1')
         self.base = base
+        # Avoid creating dict repeatedly by moving it to a static attribute
+        if not hasattr(self.__class__, '_nonpositive_map'):
+            self.__class__._nonpositive_map = {"clip": True, "mask": False}
         self._clip = _api.check_getitem(
-            {"clip": True, "mask": False}, nonpositive=nonpositive)
+            self.__class__._nonpositive_map, nonpositive=nonpositive)
 
     def __str__(self):
         return "{}(base={}, nonpositive={!r})".format(
