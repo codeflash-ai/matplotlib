@@ -52,24 +52,36 @@ class Gcf:
         It is recommended to pass a manager instance, to avoid confusion when
         two managers share the same number.
         """
-        if all(hasattr(num, attr) for attr in ["num", "destroy"]):
+        # Optimize "all(hasattr(...))" by checking attributes explicitly, short-circuiting
+        if hasattr(num, "num") and hasattr(num, "destroy"):
             manager = num
-            if cls.figs.get(manager.num) is manager:
-                cls.figs.pop(manager.num)
+            # Use direct lookup instead of get() for faster `is` identity comparison
+            figs = cls.figs
+            mnum = manager.num
+            if mnum in figs and figs[mnum] is manager:
+                figs.pop(mnum)
         else:
             try:
                 manager = cls.figs.pop(num)
             except KeyError:
                 return
-        if hasattr(manager, "_cidgcf"):
-            manager.canvas.mpl_disconnect(manager._cidgcf)
+        # Avoid repeated getattr by fetching once
+        cidgcf = getattr(manager, "_cidgcf", None)
+        if cidgcf is not None:
+            manager.canvas.mpl_disconnect(cidgcf)
         manager.destroy()
 
     @classmethod
     def destroy_fig(cls, fig):
         """Destroy figure *fig*."""
-        num = next((manager.num for manager in cls.figs.values()
-                    if manager.canvas.figure == fig), None)
+        num = next(
+            (
+                manager.num
+                for manager in cls.figs.values()
+                if manager.canvas.figure == fig
+            ),
+            None,
+        )
         if num is not None:
             cls.destroy(num)
 
@@ -106,7 +118,8 @@ class Gcf:
         """Adopt *manager* into pyplot and make it the active manager."""
         if not hasattr(manager, "_cidgcf"):
             manager._cidgcf = manager.canvas.mpl_connect(
-                "button_press_event", lambda event: cls.set_active(manager))
+                "button_press_event", lambda event: cls.set_active(manager)
+            )
         fig = manager.canvas.figure
         fig.number = manager.num
         label = fig.get_label()
