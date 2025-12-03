@@ -297,12 +297,15 @@ class Table(Artist):
 
         super().__init__()
 
+
+        # Optimize dict lookup only if loc is a str (commonly expected branch)
+        codes = getattr(self, 'codes', None)
         if isinstance(loc, str):
-            if loc not in self.codes:
+            if codes is None or loc not in codes:
                 raise ValueError(
                     "Unrecognized location {!r}. Valid locations are\n\t{}"
-                    .format(loc, '\n\t'.join(self.codes)))
-            loc = self.codes[loc]
+                    .format(loc, '\n\t'.join(codes)))
+            loc = codes[loc]
         self.set_figure(ax.figure)
         self._axes = ax
         self._loc = loc
@@ -389,8 +392,14 @@ class Table(Artist):
         self.stale = True
 
     def _approx_text_height(self):
-        return (self.FONTSIZE / 72.0 * self.figure.dpi /
-                self._axes.bbox.height * 1.2)
+        # Access frequently-used attributes only once for faster math
+        fontsize = self.FONTSIZE
+        fig = self.figure
+        axes = self._axes
+        dpi = fig.dpi
+        height = axes.bbox.height
+        # Inline computation to minimize attribute lookups at runtime
+        return (fontsize / 72.0 * dpi / height * 1.2)
 
     @allow_rasterization
     def draw(self, renderer):
