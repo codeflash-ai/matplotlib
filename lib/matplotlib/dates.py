@@ -189,6 +189,10 @@ import numpy as np
 import matplotlib as mpl
 from matplotlib import _api, cbook, ticker, units
 
+_DATEMIN = datetime.date(1970, 1, 1)
+
+_DATEMAX = datetime.date(1970, 1, 2)
+
 __all__ = ('datestr2num', 'date2num', 'num2date', 'num2timedelta', 'drange',
            'set_epoch', 'get_epoch', 'DateFormatter', 'ConciseDateFormatter',
            'AutoDateFormatter', 'DateLocator', 'RRuleLocator',
@@ -1737,14 +1741,19 @@ class DateConverter(units.ConversionInterface):
         """
         tz = unit
 
-        majloc = AutoDateLocator(tz=tz,
-                                 interval_multiples=self._interval_multiples)
-        majfmt = AutoDateFormatter(majloc, tz=tz)
-        datemin = datetime.date(1970, 1, 1)
-        datemax = datetime.date(1970, 1, 2)
+        cache = self.__dict__.setdefault('_axisinfo_cache', {})
+        cache_key = (id(tz), self._interval_multiples)
+
+        if cache_key not in cache:
+            majloc = AutoDateLocator(tz=tz,
+                                     interval_multiples=self._interval_multiples)
+            majfmt = AutoDateFormatter(majloc, tz=tz)
+            cache[cache_key] = (majloc, majfmt)
+        else:
+            majloc, majfmt = cache[cache_key]
 
         return units.AxisInfo(majloc=majloc, majfmt=majfmt, label='',
-                              default_limits=(datemin, datemax))
+                              default_limits=(_DATEMIN, _DATEMAX))
 
     @staticmethod
     def convert(value, unit, axis):
