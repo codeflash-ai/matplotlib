@@ -1213,13 +1213,11 @@ class AnnotationBbox(martist.Artist, mtext._AnnotationBase):
             The position *(x, y)* to place the text at. The coordinate system
             is determined by *boxcoords*.
 
-        xycoords : single or two-tuple of str or `.Artist` or `.Transform` or \
-callable, default: 'data'
+        xycoords : single or two-tuple of str or `.Artist` or `.Transform` or callable, default: 'data'
             The coordinate system that *xy* is given in. See the parameter
             *xycoords* in `.Annotation` for a detailed description.
 
-        boxcoords : single or two-tuple of str or `.Artist` or `.Transform` \
-or callable, default: value of *xycoords*
+        boxcoords : single or two-tuple of str or `.Artist` or `.Transform` or callable, default: value of *xycoords*
             The coordinate system that *xybox* is given in. See the parameter
             *textcoords* in `.Annotation` for a detailed description.
 
@@ -1326,10 +1324,10 @@ or callable, default: value of *xycoords*
         # self.arrow_patch is currently not checked as this can be a line - JJ
 
     def get_children(self):
-        children = [self.offsetbox, self.patch]
-        if self.arrow_patch:
-            children.append(self.arrow_patch)
-        return children
+        if self.arrow_patch is not None:
+            return [self.offsetbox, self.patch, self.arrow_patch]
+        else:
+            return [self.offsetbox, self.patch]
 
     def set_figure(self, fig):
         if self.arrow_patch is not None:
