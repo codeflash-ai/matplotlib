@@ -213,14 +213,14 @@ def _get_tzinfo(tz=None):
     tz = mpl._val_or_rc(tz, 'timezone')
     if tz == 'UTC':
         return UTC
+    if isinstance(tz, datetime.tzinfo):
+        return tz
     if isinstance(tz, str):
-        tzinfo = dateutil.tz.gettz(tz)
+        tzinfo = _cached_gettz(tz)
         if tzinfo is None:
             raise ValueError(f"{tz} is not a valid timezone as parsed by"
                              " dateutil.tz.gettz.")
         return tzinfo
-    if isinstance(tz, datetime.tzinfo):
-        return tz
     raise TypeError(f"tz must be string or tzinfo subclass, not {tz!r}.")
 
 
@@ -559,6 +559,12 @@ def _wrap_in_tex(text):
     ret_text = '$\\mathdefault{' + ret_text + '}$'
     ret_text = ret_text.replace('$\\mathdefault{}$', '')
     return ret_text
+
+
+
+@functools.lru_cache(maxsize=32)
+def _cached_gettz(tz: str):
+    return dateutil.tz.gettz(tz)
 
 
 ## date tick locators and formatters ###
