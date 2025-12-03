@@ -481,6 +481,8 @@ def num2date(x, tz=None):
     For details, see the module docstring.
     """
     tz = _get_tzinfo(tz)
+    if isinstance(x, (float, int, np.floating, np.integer)):
+        return _from_ordinalf(x, tz)
     return _from_ordinalf_np_vectorized(x, tz).tolist()
 
 
