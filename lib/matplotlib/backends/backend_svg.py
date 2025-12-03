@@ -263,7 +263,7 @@ def _generate_transform(transform_list):
 
 
 def _generate_css(attrib):
-    return "; ".join(f"{k}: {v}" for k, v in attrib.items())
+    return "; ".join([f"{k}: {v}" for k, v in attrib.items()])
 
 
 _capstyle_d = {'projecting': 'square', 'butt': 'butt', 'round': 'round'}
