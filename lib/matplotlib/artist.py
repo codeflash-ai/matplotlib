@@ -448,12 +448,27 @@ class Artist:
 
     def get_transform(self):
         """Return the `.Transform` instance used by this artist."""
-        if self._transform is None:
-            self._transform = IdentityTransform()
-        elif (not isinstance(self._transform, Transform)
-              and hasattr(self._transform, '_as_mpl_transform')):
-            self._transform = self._transform._as_mpl_transform(self.axes)
-        return self._transform
+        # Fast path: avoid repeated isinstance/hasattr checks
+        # The original logic has 3 cases:
+        #   (1) None → set to IdentityTransform;
+        #   (2) Not a Transform and has _as_mpl_transform -> call _as_mpl_transform;
+        #   (3) Otherwise, return
+        # If self._transform is already a Transform, skip all checks.
+        tf = self._transform
+        if tf is None:
+            tf = IdentityTransform()
+            self._transform = tf
+            return tf
+        # If tf is already a Transform, return immediately.
+        if isinstance(tf, Transform):
+            return tf
+        # If tf has _as_mpl_transform, use it (should not be Transform, per logic above)
+        if hasattr(tf, '_as_mpl_transform'):
+            tf_new = tf._as_mpl_transform(self.axes)
+            self._transform = tf_new
+            return tf_new
+        # Rare case: tf is not None, not Transform, and has no _as_mpl_transform
+        return tf
 
     def get_children(self):
         r"""Return a list of the child `.Artist`\s of this `.Artist`."""
