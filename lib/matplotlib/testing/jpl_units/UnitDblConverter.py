@@ -5,7 +5,7 @@ import numpy as np
 from matplotlib import cbook, units
 import matplotlib.projections.polar as polar
 
-__all__ = ['UnitDblConverter']
+__all__ = ["UnitDblConverter"]
 
 
 # A special function for use with the matplotlib FuncFormatter class
@@ -17,32 +17,45 @@ def rad_fn(x, pos=None):
     if n == 0:
         return str(x)
     elif n == 1:
-        return r'$\pi/2$'
+        return r"$\pi/2$"
     elif n == 2:
-        return r'$\pi$'
+        return r"$\pi$"
     elif n % 2 == 0:
-        return fr'${n//2}\pi$'
+        return rf"${n // 2}\pi$"
     else:
-        return fr'${n}\pi/2$'
+        return rf"${n}\pi/2$"
 
 
 class UnitDblConverter(units.ConversionInterface):
     """
     Provides Matplotlib conversion functionality for the Monte UnitDbl class.
     """
+
     # default for plotting
     defaults = {
-       "distance": 'km',
-       "angle": 'deg',
-       "time": 'sec',
-       }
+        "distance": "km",
+        "angle": "deg",
+        "time": "sec",
+    }
 
     @staticmethod
     def axisinfo(unit, axis):
         # docstring inherited
 
         # Delay-load due to circular dependencies.
-        import matplotlib.testing.jpl_units as U
+        # Optimize: Import the formatter class once, not the entire module.
+        # Only import UnitDblFormatter, keeping the lazy import to avoid circular refs.
+        try:
+            from matplotlib.testing.jpl_units.UnitDblFormatter import UnitDblFormatter
+        except ImportError:
+            # Fallback for environments/potential packaging strategies
+            import matplotlib.testing.jpl_units as U
+
+            UnitDblFormatter = U.UnitDblFormatter
+
+        # Check to see if the value used for units is a string unit value
+        # or an actual instance of a UnitDbl so that we can use the unit
+        # value for the default axis label value.
 
         # Check to see if the value used for units is a string unit value
         # or an actual instance of a UnitDbl so that we can use the unit
@@ -56,7 +69,13 @@ class UnitDblConverter(units.ConversionInterface):
             # If we want degrees for a polar plot, use the PolarPlotFormatter
             majfmt = polar.PolarAxes.ThetaFormatter()
         else:
-            majfmt = U.UnitDblFormatter(useOffset=False)
+            # Optimize: Cache a no-offset UnitDblFormatter instance for reuse.
+            # This can be done via a static variable for significant instantiation savings.
+            if not hasattr(UnitDblConverter.axisinfo, "_no_offset_formatter"):
+                UnitDblConverter.axisinfo._no_offset_formatter = UnitDblFormatter(
+                    useOffset=False
+                )
+            majfmt = UnitDblConverter.axisinfo._no_offset_formatter
 
         return units.AxisInfo(majfmt=majfmt, label=label)
 
