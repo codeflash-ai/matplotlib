@@ -806,10 +806,9 @@ class AuxTransformBox(OffsetBox):
     def __init__(self, aux_transform):
         self.aux_transform = aux_transform
         super().__init__()
-        self.offset_transform = mtransforms.Affine2D()
-        # ref_offset_transform makes offset_transform always relative to the
-        # lower-left corner of the bbox of its children.
-        self.ref_offset_transform = mtransforms.Affine2D()
+        # Instantiate transforms only once, store them directly as attributes
+        self.offset_transform: mtransforms.Affine2D = mtransforms.Affine2D()
+        self.ref_offset_transform: mtransforms.Affine2D = mtransforms.Affine2D()
 
     def add_artist(self, a):
         """Add an `.Artist` to the container box."""
@@ -822,9 +821,8 @@ class AuxTransformBox(OffsetBox):
         Return the :class:`~matplotlib.transforms.Transform` applied
         to the children
         """
-        return (self.aux_transform
-                + self.ref_offset_transform
-                + self.offset_transform)
+        # Use operator chaining since Affine2D.__add__ is already optimized
+        return self.aux_transform + self.ref_offset_transform + self.offset_transform
 
     def set_transform(self, t):
         """
