@@ -701,7 +701,9 @@ _scale_mapping = {
 
 def get_scale_names():
     """Return the names of the available scales."""
-    return sorted(_scale_mapping)
+    if not hasattr(get_scale_names, "_sorted_names"):
+        get_scale_names._sorted_names = tuple(sorted(_scale_mapping))
+    return list(get_scale_names._sorted_names)
 
 
 def scale_factory(scale, axis, **kwargs):
