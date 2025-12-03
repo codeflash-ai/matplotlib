@@ -2433,7 +2433,13 @@ class Parser:
         return False
 
     def is_dropsub(self, nucleus: Node) -> bool:
-        if isinstance(nucleus, Char):
+        # Micro-optimization: Use type(nucleus) is Char instead of isinstance
+        # when Char is a class and no subclassing is expected.
+        # This avoids the extra isinstance machinery for a small but
+        # measurable gain (esp. on CPython).
+        CharType = Char  # Localize for speed: builtins/global lookups are slow in hot paths
+
+        if type(nucleus) is CharType:
             return nucleus.c in self._dropsub_symbols
         return False
 
