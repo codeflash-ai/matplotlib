@@ -1813,11 +1813,13 @@ class _SwitchableDateConverter:
 
     @staticmethod
     def _get_converter():
-        converter_cls = {
-            "concise": ConciseDateConverter, "auto": DateConverter}[
-                mpl.rcParams["date.converter"]]
-        interval_multiples = mpl.rcParams["date.interval_multiples"]
-        return converter_cls(interval_multiples=interval_multiples)
+        rcparams = mpl.rcParams
+        converter_type = rcparams["date.converter"]
+        if converter_type == "concise":
+            converter_cls = ConciseDateConverter
+        else:
+            converter_cls = DateConverter
+        return converter_cls(interval_multiples=rcparams["date.interval_multiples"])
 
     def axisinfo(self, *args, **kwargs):
         return self._get_converter().axisinfo(*args, **kwargs)
