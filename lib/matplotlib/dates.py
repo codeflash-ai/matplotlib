@@ -1788,9 +1788,22 @@ class ConciseDateConverter(DateConverter):
         self._show_offset = show_offset
         self._interval_multiples = interval_multiples
         super().__init__()
+        # Precompute constant date limits
+        self._datemin = datetime.date(1970, 1, 1)
+        self._datemax = datetime.date(1970, 1, 2)
 
     def axisinfo(self, unit, axis):
         # docstring inherited
+        cache = getattr(self, '_axisinfo_cache', None)
+        if cache is None:
+            cache = {}
+            self._axisinfo_cache = cache
+
+        cache_key = (unit, id(axis))
+        cached = cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         tz = unit
         majloc = AutoDateLocator(tz=tz,
                                  interval_multiples=self._interval_multiples)
@@ -1798,10 +1811,16 @@ class ConciseDateConverter(DateConverter):
                                       zero_formats=self._zero_formats,
                                       offset_formats=self._offset_formats,
                                       show_offset=self._show_offset)
-        datemin = datetime.date(1970, 1, 1)
-        datemax = datetime.date(1970, 1, 2)
-        return units.AxisInfo(majloc=majloc, majfmt=majfmt, label='',
-                              default_limits=(datemin, datemax))
+
+        axis_info = units.AxisInfo(
+            majloc=majloc,
+            majfmt=majfmt,
+            label='',
+            default_limits=(self._datemin, self._datemax)
+        )
+
+        cache[cache_key] = axis_info
+        return axis_info
 
 
 class _SwitchableDateConverter:
