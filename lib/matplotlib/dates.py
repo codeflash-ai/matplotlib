@@ -1765,6 +1765,29 @@ class DateConverter(units.ConversionInterface):
         if isinstance(x, np.ndarray):
             x = x.ravel()
 
+            # Try retrieve tzinfo from first element efficiently,
+            # avoid _safe_first_finite if we can
+            if x.size > 0:
+                first = x[0]
+                # Only go to _safe_first_finite if first is not finite/scalar
+                try:
+                    tzinfo = getattr(first, 'tzinfo', None)
+                    if tzinfo is not None or hasattr(first, 'tzinfo'):
+                        return tzinfo
+                except Exception:
+                    # fallback to original logic
+                    pass
+        else:
+            # Fast path for sequences: try first element if available
+            try:
+                first = next(iter(x))
+                tzinfo = getattr(first, 'tzinfo', None)
+                if tzinfo is not None or hasattr(first, 'tzinfo'):
+                    return tzinfo
+            except Exception:
+                pass
+
+        # Fallback: use expensive _safe_first_finite only as necessary
         try:
             x = cbook._safe_first_finite(x)
         except (TypeError, StopIteration):
@@ -1813,9 +1836,12 @@ class _SwitchableDateConverter:
 
     @staticmethod
     def _get_converter():
-        converter_cls = {
-            "concise": ConciseDateConverter, "auto": DateConverter}[
-                mpl.rcParams["date.converter"]]
+        # Inline dict lookup to reduce object creation overhead
+        converter = mpl.rcParams["date.converter"]
+        if converter == "concise":
+            converter_cls = ConciseDateConverter
+        else:
+            converter_cls = DateConverter
         interval_multiples = mpl.rcParams["date.interval_multiples"]
         return converter_cls(interval_multiples=interval_multiples)
 
@@ -1823,7 +1849,9 @@ class _SwitchableDateConverter:
         return self._get_converter().axisinfo(*args, **kwargs)
 
     def default_units(self, *args, **kwargs):
-        return self._get_converter().default_units(*args, **kwargs)
+        # Avoid repeated lookups by storing local reference
+        converter = self._get_converter()
+        return converter.default_units(*args, **kwargs)
 
     def convert(self, *args, **kwargs):
         return self._get_converter().convert(*args, **kwargs)
