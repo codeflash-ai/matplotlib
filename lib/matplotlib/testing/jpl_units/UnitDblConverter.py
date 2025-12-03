@@ -5,7 +5,7 @@ import numpy as np
 from matplotlib import cbook, units
 import matplotlib.projections.polar as polar
 
-__all__ = ['UnitDblConverter']
+__all__ = ["UnitDblConverter"]
 
 
 # A special function for use with the matplotlib FuncFormatter class
@@ -17,25 +17,26 @@ def rad_fn(x, pos=None):
     if n == 0:
         return str(x)
     elif n == 1:
-        return r'$\pi/2$'
+        return r"$\pi/2$"
     elif n == 2:
-        return r'$\pi$'
+        return r"$\pi$"
     elif n % 2 == 0:
-        return fr'${n//2}\pi$'
+        return rf"${n // 2}\pi$"
     else:
-        return fr'${n}\pi/2$'
+        return rf"${n}\pi/2$"
 
 
 class UnitDblConverter(units.ConversionInterface):
     """
     Provides Matplotlib conversion functionality for the Monte UnitDbl class.
     """
+
     # default for plotting
     defaults = {
-       "distance": 'km',
-       "angle": 'deg',
-       "time": 'sec',
-       }
+        "distance": "km",
+        "angle": "deg",
+        "time": "sec",
+    }
 
     @staticmethod
     def axisinfo(unit, axis):
@@ -64,7 +65,9 @@ class UnitDblConverter(units.ConversionInterface):
     def convert(value, unit, axis):
         # docstring inherited
         if not cbook.is_scalar_or_string(value):
-            return [UnitDblConverter.convert(x, unit, axis) for x in value]
+            method = UnitDblConverter.convert
+            return [method(x, unit, axis) for x in value]
+        # If no units were specified, then get the default units to use.
         # If no units were specified, then get the default units to use.
         if unit is None:
             unit = UnitDblConverter.default_units(value, axis)
@@ -79,7 +82,11 @@ class UnitDblConverter(units.ConversionInterface):
         # docstring inherited
         # Determine the default units based on the user preferences set for
         # default units when printing a UnitDbl.
+        # docstring inherited
+        # Determine the default units based on the user preferences set for
+        # default units when printing a UnitDbl.
+        defaults = UnitDblConverter.defaults
         if cbook.is_scalar_or_string(value):
-            return UnitDblConverter.defaults[value.type()]
+            return defaults[value.type()]
         else:
             return UnitDblConverter.default_units(value[0], axis)
