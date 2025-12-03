@@ -83,8 +83,7 @@ class Cell(Rectangle):
         fontproperties : dict, optional
             A dict defining the font properties of the text. Supported keys and
             values are the keyword arguments accepted by `.FontProperties`.
-        visible_edges : {'closed', 'open', 'horizontal', 'vertical'} or \
-substring of 'BRTL'
+        visible_edges : {'closed', 'open', 'horizontal', 'vertical'} or substring of 'BRTL'
             The cell edges to be drawn with a line: a substring of 'BRTL'
             (bottom, right, top, left), or one of 'open' (no edges drawn),
             'closed' (all edges drawn), 'horizontal' (bottom and top),
@@ -220,9 +219,11 @@ substring of 'BRTL'
     def get_path(self):
         """Return a `.Path` for the `.visible_edges`."""
         codes = [Path.MOVETO]
-        codes.extend(
-            Path.LINETO if edge in self._visible_edges else Path.MOVETO
-            for edge in self._edges)
+        for edge in self._edges:
+            if edge in self._visible_edges:
+                codes.append(Path.LINETO)
+            else:
+                codes.append(Path.MOVETO)
         if Path.MOVETO not in codes[1:]:  # All sides are visible
             codes[-1] = Path.CLOSEPOLY
         return Path(
