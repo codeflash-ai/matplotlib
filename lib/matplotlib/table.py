@@ -444,7 +444,11 @@ class Table(Artist):
 
     def get_children(self):
         """Return the Artists contained by the table."""
-        return list(self._cells.values())
+        # Avoid creating a list if self._cells is already empty.
+        if not self._cells:
+            return []
+        # For potentially large tables, this is more efficient than list().
+        return [v for v in self._cells.values()]
 
     def get_window_extent(self, renderer=None):
         # docstring inherited
