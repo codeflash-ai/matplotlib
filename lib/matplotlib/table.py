@@ -451,8 +451,8 @@ class Table(Artist):
         if renderer is None:
             renderer = self.figure._get_renderer()
         self._update_positions(renderer)
-        boxes = [cell.get_window_extent(renderer)
-                 for cell in self._cells.values()]
+        boxes = (cell.get_window_extent(renderer)
+                 for cell in self._cells.values())
         return Bbox.union(boxes)
 
     def _do_cell_alignment(self):
@@ -577,20 +577,47 @@ class Table(Artist):
             c.set_y(y + oy)
 
     def _update_positions(self, renderer):
-        # called from renderer to allow more precise estimates of
-        # widths and heights with get_window_extent
+        # Perform cell width/height/fontsize updates and reposition in a single scan.
+        _autoColumns = self._autoColumns
+        _autoFontsize = self._autoFontsize
+        _cells = self._cells
 
         # Do any auto width setting
-        for col in self._autoColumns:
+        for col in _autoColumns:
             self._auto_set_column_width(col, renderer)
 
-        if self._autoFontsize:
+        if _autoFontsize:
             self._auto_set_font_size(renderer)
 
-        # Align all the cells
-        self._do_cell_alignment()
+        # Calculate widths/heights for alignment only once and cache
+        widths = {}
+        heights = {}
+        # Gather cell dimensions and group by row/col
+        for (row, col), cell in _cells.items():
+            height = heights.setdefault(row, 0.0)
+            heights[row] = max(height, cell.get_height())
+            width = widths.setdefault(col, 0.0)
+            widths[col] = max(width, cell.get_width())
 
-        bbox = self._get_grid_bbox(renderer)
+        # Compute left edge for each column
+        xpos = 0
+        lefts = {}
+        for col in sorted(widths):
+            lefts[col] = xpos
+            xpos += widths[col]
+
+        # Compute bottom for each row (reverse sorted order)
+        ypos = 0
+        bottoms = {}
+        for row in sorted(heights, reverse=True):
+            bottoms[row] = ypos
+            ypos += heights[row]
+
+        # Now get bbox (efficient grid bounds calculation)
+        boxes = (cell.get_window_extent(renderer)
+                 for (row, col), cell in _cells.items()
+                 if row >= 0 and col >= 0)
+        bbox = Bbox.union(boxes)
         l, b, w, h = bbox.bounds
 
         if self._bbox is not None:
@@ -599,10 +626,17 @@ class Table(Artist):
                 rl, rb, rw, rh = self._bbox.bounds
             else:
                 rl, rb, rw, rh = self._bbox
-            self.scale(rw / w, rh / h)
+            xscale = rw / w
+            yscale = rh / h
+            for c in _cells.values():
+                c.set_width(c.get_width() * xscale)
+                c.set_height(c.get_height() * yscale)
             ox = rl - l
             oy = rb - b
-            self._do_cell_alignment()
+            # Final cell positions
+            for (row, col), cell in _cells.items():
+                cell.set_x(lefts[col] + ox)
+                cell.set_y(bottoms[row] + oy)
         else:
             # Position using loc
             (BEST, UR, UL, LL, LR, CL, CR, LC, UC, C,
@@ -631,8 +665,10 @@ class Table(Artist):
                 oy = 1.0 - b
             if self._loc in (BL, BR, B):           # out bottom
                 oy = - (b + h)
-
-        self._offset(ox, oy)
+            # Set final positions just once
+            for (row, col), cell in _cells.items():
+                cell.set_x(lefts[col] + ox)
+                cell.set_y(bottoms[row] + oy)
 
     def get_celld(self):
         r"""
