@@ -298,11 +298,12 @@ class Table(Artist):
         super().__init__()
 
         if isinstance(loc, str):
-            if loc not in self.codes:
+            code = self.codes.get(loc)
+            if code is None:
                 raise ValueError(
                     "Unrecognized location {!r}. Valid locations are\n\t{}"
                     .format(loc, '\n\t'.join(self.codes)))
-            loc = self.codes[loc]
+            loc = code
         self.set_figure(ax.figure)
         self._axes = ax
         self._loc = loc
@@ -502,8 +503,8 @@ class Table(Artist):
                                  "Passing other types is deprecated since %(since)s "
                                  "and will be removed %(removal)s.")
             return
-        for cell in col1d:
-            self._autoColumns.append(cell)
+        self._autoColumns.extend(col1d.tolist())
+
 
         self.stale = True
 
