@@ -933,29 +933,43 @@ class AnchoredOffsetbox(OffsetBox):
         -----
         See `.Legend` for a detailed description of the anchoring mechanism.
         """
+        # Use local variable and minimize lookups for frequently accessed items
+        codes = self.codes
+        rcparams = mpl.rcParams
+        legend_fontsize = rcparams["legend.fontsize"]
+
         super().__init__(**kwargs)
 
         self.set_bbox_to_anchor(bbox_to_anchor, bbox_transform)
         self.set_child(child)
 
         if isinstance(loc, str):
-            loc = _api.check_getitem(self.codes, loc=loc)
+            loc = _api.check_getitem(codes, loc=loc)
 
         self.loc = loc
         self.borderpad = borderpad
         self.pad = pad
 
         if prop is None:
-            self.prop = FontProperties(size=mpl.rcParams["legend.fontsize"])
+            self.prop = FontProperties(size=legend_fontsize)
         else:
-            self.prop = FontProperties._from_any(prop)
+            # Optimize out repeated rcParams lookup
+            prop_obj = FontProperties._from_any(prop)
             if isinstance(prop, dict) and "size" not in prop:
-                self.prop.set_size(mpl.rcParams["legend.fontsize"])
+                prop_obj.set_size(legend_fontsize)
+            self.prop = prop_obj
+
+        # Avoid attribute lookup for frequently used methods
+        # mutation_scale is set only once so inline call for slightly better perf
+        mutation_scale = self.prop.get_size_in_points()
 
         self.patch = FancyBboxPatch(
-            xy=(0.0, 0.0), width=1., height=1.,
-            facecolor='w', edgecolor='k',
-            mutation_scale=self.prop.get_size_in_points(),
+            xy=(0.0, 0.0),
+            width=1.,
+            height=1.,
+            facecolor='w',
+            edgecolor='k',
+            mutation_scale=mutation_scale,
             snap=True,
             visible=frameon,
             boxstyle="square,pad=0",
