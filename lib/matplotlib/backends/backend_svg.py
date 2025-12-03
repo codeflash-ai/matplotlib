@@ -101,7 +101,12 @@ def _short_float_fmt(x):
     Create a short string representation of a float, which is %f
     formatting with trailing zeros and the decimal point removed.
     """
-    return f'{x:f}'.rstrip('0').rstrip('.')
+    # Avoid format overhead for int values, as trailing zeros are not present
+    if isinstance(x, int):
+        return str(x)
+    s = f'{x:f}'
+    s = s.rstrip('0').rstrip('.')
+    return s
 
 
 class XMLWriter:
@@ -250,6 +255,7 @@ class XMLWriter:
 
 def _generate_transform(transform_list):
     parts = []
+    append = parts.append  # Localize for faster access
     for type, value in transform_list:
         if (type == 'scale' and (value == (1,) or value == (1, 1))
                 or type == 'translate' and value == (0, 0)
@@ -257,8 +263,9 @@ def _generate_transform(transform_list):
             continue
         if type == 'matrix' and isinstance(value, Affine2DBase):
             value = value.to_values()
-        parts.append('{}({})'.format(
-            type, ' '.join(_short_float_fmt(x) for x in value)))
+        # Preallocate string generators for reduced overhead
+        fmt_values = (_short_float_fmt(x) for x in value)
+        append(f'{type}({" ".join(fmt_values)})')
     return ' '.join(parts)
 
 
