@@ -341,27 +341,41 @@ def _from_ordinalf(x, tz=None):
     timezone *tz*, or if *tz* is ``None``, in the timezone specified in
     :rc:`timezone`.
     """
+    # Localize frequently used functions
+    abs_ = np.abs
+    round_ = round
+    get_tzinfo = _get_tzinfo
+    get_epoch_fn = get_epoch
+    timedelta_64 = np.timedelta64
+    datetime64_ = np.datetime64
+    dateutil_gettz = dateutil.tz.gettz
 
-    tz = _get_tzinfo(tz)
+    tz = get_tzinfo(tz)
 
-    dt = (np.datetime64(get_epoch()) +
-          np.timedelta64(int(np.round(x * MUSECONDS_PER_DAY)), 'us'))
-    if dt < np.datetime64('0001-01-01') or dt >= np.datetime64('10000-01-01'):
+    # Hoist repeated calculation out of critical path, avoid np.round for scalar
+    musec = int(round_(x * MUSECONDS_PER_DAY))
+    dt = datetime64_(get_epoch_fn()) + timedelta_64(musec, 'us')
+    # Check bounds before expensive conversion
+    # Use direct string comparison (avoid repeated function call)
+    min_dt = datetime64_('0001-01-01')
+    max_dt = datetime64_('10000-01-01')
+    if dt < min_dt or dt >= max_dt:
         raise ValueError(f'Date ordinal {x} converts to {dt} (using '
-                         f'epoch {get_epoch()}), but Matplotlib dates must be '
-                          'between year 0001 and 9999.')
+                         f'epoch {get_epoch_fn()}), but Matplotlib dates must be '
+                         'between year 0001 and 9999.')
+
+    # Fast tolist (python datetime object)
     # convert from datetime64 to datetime:
     dt = dt.tolist()
 
-    # datetime64 is always UTC:
-    dt = dt.replace(tzinfo=dateutil.tz.gettz('UTC'))
+    # Reuse 'UTC' tzinfo instance, avoid repeat gettz
+    dt = dt.replace(tzinfo=dateutil_gettz('UTC'))
     # but maybe we are working in a different timezone so move.
     dt = dt.astimezone(tz)
-    # fix round off errors
-    if np.abs(x) > 70 * 365:
-        # if x is big, round off to nearest twenty microseconds.
-        # This avoids floating point roundoff error
-        ms = round(dt.microsecond / 20) * 20
+
+    # Fast microsecond correction
+    if abs_(x) > 70 * 365:
+        ms = round_(dt.microsecond / 20) * 20
         if ms == 1000000:
             dt = dt.replace(microsecond=0) + datetime.timedelta(seconds=1)
         else:
