@@ -1992,17 +1992,21 @@ class Parser:
         def csnames(group: str, names: Iterable[str]) -> Regex:
             ends_with_alpha = []
             ends_with_nonalpha = []
+            append_alpha = ends_with_alpha.append
+            append_nonalpha = ends_with_nonalpha.append
             for name in names:
                 if name[-1].isalpha():
-                    ends_with_alpha.append(name)
+                    append_alpha(name)
                 else:
-                    ends_with_nonalpha.append(name)
+                    append_nonalpha(name)
+            alpha_part = "|".join(map(re.escape, ends_with_alpha))
+            nonalpha_part = "|".join(map(re.escape, ends_with_nonalpha))
             return Regex(
                 r"\\(?P<{group}>(?:{alpha})(?![A-Za-z]){additional}{nonalpha})".format(
                     group=group,
-                    alpha="|".join(map(re.escape, ends_with_alpha)),
+                    alpha=alpha_part,
                     additional="|" if ends_with_nonalpha else "",
-                    nonalpha="|".join(map(re.escape, ends_with_nonalpha)),
+                    nonalpha=nonalpha_part,
                 )
             )
 
@@ -2012,11 +2016,12 @@ class Parser:
         p.style_literal  = oneOf(
             [str(e.value) for e in self._MathStyle])("style_literal")
 
-        p.symbol         = Regex(
+        # The Regex building for symbol is potentially expensive each call; precalculate args.
+        _tex2uni_regex = "|".join(map(re.escape, tex2uni))
+        p.symbol = Regex(
             r"[a-zA-Z0-9 +\-*/<>=:,.;!\?&'@()\[\]|\U00000080-\U0001ffff]"
             r"|\\[%${}\[\]_|]"
-            + r"|\\(?:{})(?![A-Za-z])".format(
-                "|".join(map(re.escape, tex2uni)))
+            + r"|\\(?:" + _tex2uni_regex + r")(?![A-Za-z])"
         )("sym").leaveWhitespace()
         p.unknown_symbol = Regex(r"\\[A-Za-z]+")("name")
 
@@ -2087,10 +2092,14 @@ class Parser:
 
         p.text = cmd(r"\text", QuotedString('{', '\\', endQuoteChar="}"))
 
-        p.substack = cmd(r"\substack",
-                           nested_expr(opener="{", closer="}",
-                                       content=Group(OneOrMore(p.token)) +
-                                       ZeroOrMore(Literal("\\\\").suppress()))("parts"))
+        p.substack = cmd(
+            r"\substack",
+            nested_expr(opener="{", closer="}",
+                        content=Group(OneOrMore(p.token)) +
+                        ZeroOrMore(Literal("\\\\").suppress()))("parts"))
+
+        # p.subsuper construction is as in original - leave unchanged
+
 
         p.subsuper = (
             (Optional(p.placeable)("nucleus")
@@ -2410,7 +2419,11 @@ class Parser:
         return [grp]
 
     def required_group(self, toks: ParseResults) -> T.Any:
-        return Hlist(toks.get("group", []))
+        # Optimize by minimizing dict lookups and unnecessary checks
+        group = toks.get("group")
+        if group is None:
+            return Hlist([])
+        return Hlist(group)
 
     optional_group = required_group
 
