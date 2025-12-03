@@ -427,31 +427,37 @@ def date2num(d):
     d = cbook._unpack_to_numpy(d)
 
     # make an iterable, but save state to unpack later:
+
+    # Optimize by checking empty/None fast path early
+    if isinstance(d, np.ndarray):
+        if d.size == 0:
+            return d
+
     iterable = np.iterable(d)
     if not iterable:
         d = [d]
 
     masked = np.ma.is_masked(d)
     mask = np.ma.getmask(d)
-    d = np.asarray(d)
+    arr = np.asarray(d)
+
+    # Early return for empty array
+    if arr.size == 0:
+        return arr
 
     # convert to datetime64 arrays, if not already:
-    if not np.issubdtype(d.dtype, np.datetime64):
-        # datetime arrays
-        if not d.size:
-            # deals with an empty array...
-            return d
-        tzi = getattr(d[0], 'tzinfo', None)
+    if not np.issubdtype(arr.dtype, np.datetime64):
+        tzi = getattr(arr[0], 'tzinfo', None)
         if tzi is not None:
-            # make datetime naive:
-            d = [dt.astimezone(UTC).replace(tzinfo=None) for dt in d]
-            d = np.asarray(d)
-        d = d.astype('datetime64[us]')
+            # Make datetime naive and convert timezone efficiently
+            arr = np.array([dt.astimezone(UTC).replace(tzinfo=None) for dt in arr], dtype="O")
+        arr = arr.astype('datetime64[us]')
+    
+    if masked:
+        arr = np.ma.masked_array(arr, mask=mask)
+    arr = _dt64_to_ordinalf(arr)
 
-    d = np.ma.masked_array(d, mask=mask) if masked else d
-    d = _dt64_to_ordinalf(d)
-
-    return d if iterable else d[0]
+    return arr if iterable else arr[0]
 
 
 def num2date(x, tz=None):
@@ -1356,8 +1362,12 @@ class AutoDateLocator(DateLocator):
         numDays = tdelta.days  # Avoids estimates of days/month, days/year.
         numHours = numDays * HOURS_PER_DAY + delta.hours
         numMinutes = numHours * MIN_PER_HOUR + delta.minutes
-        numSeconds = np.floor(tdelta.total_seconds())
-        numMicroseconds = np.floor(tdelta.total_seconds() * 1e6)
+
+        # Use built-in functions instead of np.floor for scalar computations for speed
+        seconds = tdelta.total_seconds()
+        numSeconds = int(seconds)
+        numMicroseconds = int(seconds * 1e6)
+
 
         nums = [numYears, numMonths, numDays, numHours, numMinutes,
                 numSeconds, numMicroseconds]
