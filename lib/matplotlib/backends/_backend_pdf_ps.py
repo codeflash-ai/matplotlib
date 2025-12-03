@@ -38,10 +38,10 @@ def get_glyphs_subset(fontfile, characters):
 
     # Prevent subsetting extra tables.
     options.drop_tables += [
-        'FFTM',  # FontForge Timestamp.
-        'PfEd',  # FontForge personal table.
-        'BDF',  # X11 BDF header.
-        'meta',  # Metadata stores design/supported languages (meaningless for subsets).
+        "FFTM",  # FontForge Timestamp.
+        "PfEd",  # FontForge personal table.
+        "BDF",  # X11 BDF header.
+        "meta",  # Metadata stores design/supported languages (meaningless for subsets).
     ]
 
     # if fontfile is a ttc, specify font number
@@ -89,6 +89,9 @@ class RendererPDFPSBase(RendererBase):
         self.width = width
         self.height = height
 
+        # Cache rcParams lookup for "image.composite_image"
+        self._image_composite_image_rc = mpl.rcParams.__getitem__
+
     def flipy(self):
         # docstring inherited
         return False  # y increases from bottom to top.
@@ -100,7 +103,8 @@ class RendererPDFPSBase(RendererBase):
     def option_image_nocomposite(self):
         # docstring inherited
         # Decide whether to composite image based on rcParam value.
-        return not mpl.rcParams["image.composite_image"]
+        # Cache __getitem__ method for rcParams for slight speedup in tight loops.
+        return not self._image_composite_image_rc("image.composite_image")
 
     def get_canvas_width_height(self):
         # docstring inherited
@@ -133,8 +137,7 @@ class RendererPDFPSBase(RendererBase):
             return w, h, d
 
     def _get_font_afm(self, prop):
-        fname = font_manager.findfont(
-            prop, fontext="afm", directory=self._afm_font_dir)
+        fname = font_manager.findfont(prop, fontext="afm", directory=self._afm_font_dir)
         return _cached_get_afm_from_fname(fname)
 
     def _get_font_ttf(self, prop):
