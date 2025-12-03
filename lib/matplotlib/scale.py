@@ -209,6 +209,20 @@ class LogTransform(Transform):
         self._clip = _api.check_getitem(
             {"clip": True, "mask": False}, nonpositive=nonpositive)
 
+        # Precompute log function and base log for efficiency
+        if base == np.e:
+            self._log_fn = np.log
+            self._log_base = None
+        elif base == 2:
+            self._log_fn = np.log2
+            self._log_base = None
+        elif base == 10:
+            self._log_fn = np.log10
+            self._log_base = None
+        else:
+            self._log_fn = np.log
+            self._log_base = np.log(base)
+
     def __str__(self):
         return "{}(base={}, nonpositive={!r})".format(
             type(self).__name__, self.base, "clip" if self._clip else "mask")
@@ -217,12 +231,11 @@ class LogTransform(Transform):
     def transform_non_affine(self, values):
         # Ignore invalid values due to nans being passed to the transform.
         with np.errstate(divide="ignore", invalid="ignore"):
-            log = {np.e: np.log, 2: np.log2, 10: np.log10}.get(self.base)
-            if log:  # If possible, do everything in a single call to NumPy.
-                out = log(values)
+            if self._log_base is None:
+                out = self._log_fn(values)
             else:
-                out = np.log(values)
-                out /= np.log(self.base)
+                out = self._log_fn(values)
+                out /= self._log_base
             if self._clip:
                 # SVG spec says that conforming viewers must support values up
                 # to 3.4e38 (C float); however experiments suggest that
@@ -233,7 +246,7 @@ class LogTransform(Transform):
                 # pass. On the other hand, in practice, we want to clip beyond
                 #     np.log10(np.nextafter(0, 1)) ~ -323
                 # so 1000 seems safe.
-                out[values <= 0] = -1000
+                np.putmask(out, values <= 0, -1000)
         return out
 
     def inverted(self):
