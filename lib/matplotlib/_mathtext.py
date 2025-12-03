@@ -5,7 +5,6 @@ Implementation details for :mod:`.mathtext`.
 from __future__ import annotations
 
 import abc
-import copy
 import enum
 import functools
 import logging
@@ -1768,7 +1767,13 @@ class ParserState:
         self.dpi = dpi
 
     def copy(self) -> ParserState:
-        return copy.copy(self)
+        return ParserState(
+            self.fontset,
+            self._font,
+            self.font_class,
+            self.fontsize,
+            self.dpi,
+        )
 
     @property
     def font(self) -> str:
