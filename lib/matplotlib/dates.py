@@ -189,6 +189,8 @@ import numpy as np
 import matplotlib as mpl
 from matplotlib import _api, cbook, ticker, units
 
+_WRAP_IN_TEX_REGEX = re.compile(r'([a-zA-Z]+)')
+
 __all__ = ('datestr2num', 'date2num', 'num2date', 'num2timedelta', 'drange',
            'set_epoch', 'get_epoch', 'DateFormatter', 'ConciseDateFormatter',
            'AutoDateFormatter', 'DateLocator', 'RRuleLocator',
@@ -549,8 +551,8 @@ def drange(dstart, dend, delta):
 
 
 def _wrap_in_tex(text):
-    p = r'([a-zA-Z]+)'
-    ret_text = re.sub(p, r'}$\1$\\mathdefault{', text)
+    # Use compiled regex
+    ret_text = _WRAP_IN_TEX_REGEX.sub(r'}$\1$\\mathdefault{', text)
 
     # Braces ensure symbols are not spaced like binary operators.
     ret_text = ret_text.replace('-', '{-}').replace(':', '{:}')
@@ -729,8 +731,14 @@ class ConciseDateFormatter(ticker.Formatter):
         return formatter(x, pos=pos)
 
     def format_ticks(self, values):
-        tickdatetime = [num2date(value, tz=self._tz) for value in values]
-        tickdate = np.array([tdt.timetuple()[:6] for tdt in tickdatetime])
+        # Use numpy for vectorized conversion when possible
+        tickdatetime = _from_ordinalf_np_vectorized(values, self._tz)
+        tickdate = np.empty((len(tickdatetime), 6), dtype=int)
+        # numpy's faster assignment via direct indexing
+        for idx, tdt in enumerate(tickdatetime):
+            ttpl = tdt.timetuple()
+            tickdate[idx, :] = ttpl[:6]
+
 
         # basic algorithm:
         # 1) only display a part of the date if it changes over the ticks.
@@ -746,17 +754,16 @@ class ConciseDateFormatter(ticker.Formatter):
         offsetfmts = self.offset_formats
         show_offset = self.show_offset
 
-        # determine the level we will label at:
-        # mostly 0: years,  1: months,  2: days,
-        # 3: hours, 4: minutes, 5: seconds, 6: microseconds
-        for level in range(5, -1, -1):
-            unique = np.unique(tickdate[:, level])
+        level = 5  # fallback/default; will be overwritten if needed
+        # Find highest level that changes over ticks
+        for lev in range(5, -1, -1):
+            unique = np.unique(tickdate[:, lev])
             if len(unique) > 1:
-                # if 1 is included in unique, the year is shown in ticks
-                if level < 2 and np.any(unique == 1):
+                if lev < 2 and np.any(unique == 1):
                     show_offset = False
+                level = lev
                 break
-            elif level == 0:
+            elif lev == 0:
                 # all tickdate are the same, so only micros might be different
                 # set to the most precise (6: microseconds doesn't exist...)
                 level = 5
@@ -765,20 +772,24 @@ class ConciseDateFormatter(ticker.Formatter):
         # now loop through and decide the actual ticklabels
         zerovals = [0, 1, 1, 0, 0, 0, 0]
         labels = [''] * len(tickdate)
-        for nn in range(len(tickdate)):
-            if level < 5:
-                if tickdate[nn][level] == zerovals[level]:
+        # Do local reference to avoid attribute lookups
+        tickdatetimes = tickdatetime
+        # Avoid global lookups in loop body for FMTS/zerofmts
+        if level < 5:
+            for nn in range(len(tickdate)):
+                testval = tickdate[nn][level]
+                labels[nn] = tickdatetimes[nn].strftime(
+                    zerofmts[level] if testval == zerovals[level] else fmts[level]
+                )
+        else:
+            for nn in range(len(tickdate)):
+                dt = tickdatetimes[nn]
+                if dt.second == dt.microsecond == 0:
                     fmt = zerofmts[level]
                 else:
                     fmt = fmts[level]
-            else:
-                # special handling for seconds + microseconds
-                if (tickdatetime[nn].second == tickdatetime[nn].microsecond
-                        == 0):
-                    fmt = zerofmts[level]
-                else:
-                    fmt = fmts[level]
-            labels[nn] = tickdatetime[nn].strftime(fmt)
+                labels[nn] = dt.strftime(fmt)
+
 
         # special handling of seconds and microseconds:
         # strip extra zeros and decimal if possible.
@@ -786,24 +797,30 @@ class ConciseDateFormatter(ticker.Formatter):
         # here (i.e. 03:00, '0.50000', '1.000') 2) we would like to have the
         # same number of decimals for each string (i.e. 0.5 and 1.0).
         if level >= 5:
-            trailing_zeros = min(
-                (len(s) - len(s.rstrip('0')) for s in labels if '.' in s),
-                default=None)
-            if trailing_zeros:
-                for nn in range(len(labels)):
-                    if '.' in labels[nn]:
-                        labels[nn] = labels[nn][:-trailing_zeros].rstrip('.')
+            # cache which labels contain '.'
+            mask = [('.' in s) for s in labels]
+            if any(mask):
+                trailing_zeros = min(
+                    (len(s) - len(s.rstrip('0')) for s in labels if '.' in s),
+                    default=None)
+                if trailing_zeros:
+                    # Only slice those that have '.' for small perf gain
+                    for nn in range(len(labels)):
+                        if mask[nn]:
+                            labels[nn] = labels[nn][:-trailing_zeros].rstrip('.')
+
 
         if show_offset:
-            # set the offset string:
-            self.offset_string = tickdatetime[-1].strftime(offsetfmts[level])
+            self.offset_string = tickdatetimes[-1].strftime(offsetfmts[level])
             if self._usetex:
                 self.offset_string = _wrap_in_tex(self.offset_string)
         else:
             self.offset_string = ''
 
         if self._usetex:
-            return [_wrap_in_tex(l) for l in labels]
+            # List comprehension with local reference to reduce global lookup
+            wrap = _wrap_in_tex
+            return [wrap(l) for l in labels]
         else:
             return labels
 
