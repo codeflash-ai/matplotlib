@@ -1213,13 +1213,11 @@ class AnnotationBbox(martist.Artist, mtext._AnnotationBase):
             The position *(x, y)* to place the text at. The coordinate system
             is determined by *boxcoords*.
 
-        xycoords : single or two-tuple of str or `.Artist` or `.Transform` or \
-callable, default: 'data'
+        xycoords : single or two-tuple of str or `.Artist` or `.Transform` or callable, default: 'data'
             The coordinate system that *xy* is given in. See the parameter
             *xycoords* in `.Annotation` for a detailed description.
 
-        boxcoords : single or two-tuple of str or `.Artist` or `.Transform` \
-or callable, default: value of *xycoords*
+        boxcoords : single or two-tuple of str or `.Artist` or `.Transform` or callable, default: value of *xycoords*
             The coordinate system that *xybox* is given in. See the parameter
             *textcoords* in `.Annotation` for a detailed description.
 
@@ -1272,30 +1270,40 @@ or callable, default: value of *xycoords*
             self, xy, xycoords=xycoords, annotation_clip=annotation_clip)
 
         self.offsetbox = offsetbox
-        self.arrowprops = arrowprops.copy() if arrowprops is not None else None
-        self.set_fontsize(fontsize)
-        self.xybox = xybox if xybox is not None else xy
-        self.boxcoords = boxcoords if boxcoords is not None else xycoords
-        self._box_alignment = box_alignment
 
+        # Optimize: Only copy arrowprops if really necessary, avoid redundant check.
         if arrowprops is not None:
-            self._arrow_relpos = self.arrowprops.pop("relpos", (0.5, 0.5))
+            arrowprops_copied = arrowprops.copy()
+            self._arrow_relpos = arrowprops_copied.pop("relpos", (0.5, 0.5))
+            self.arrowprops = arrowprops_copied
             self.arrow_patch = FancyArrowPatch((0, 0), (1, 1),
-                                               **self.arrowprops)
+                                               **arrowprops_copied)
         else:
+            self.arrowprops = None
             self._arrow_relpos = None
             self.arrow_patch = None
 
-        self.patch = FancyBboxPatch(  # frame
+        self.set_fontsize(fontsize)
+        xybox_v = xybox if xybox is not None else xy
+        self.xybox = xybox_v
+        self.boxcoords = boxcoords if boxcoords is not None else xycoords
+        self._box_alignment = box_alignment
+
+        prop = self.prop  # Avoid repeated attribute access
+
+        # Avoid attribute lookups and redundant dict indexing.
+        patch = FancyBboxPatch(
             xy=(0.0, 0.0), width=1., height=1.,
             facecolor='w', edgecolor='k',
-            mutation_scale=self.prop.get_size_in_points(),
+            mutation_scale=prop.get_size_in_points(),
             snap=True,
             visible=frameon,
         )
-        self.patch.set_boxstyle("square", pad=pad)
-        if bboxprops:
-            self.patch.set(**bboxprops)
+        patch.set_boxstyle("square", pad=pad)
+        if bboxprops is not None:
+            patch.set(**bboxprops)
+        self.patch = patch
+
 
         self._internal_update(kwargs)
 
