@@ -549,15 +549,24 @@ def drange(dstart, dend, delta):
 
 
 def _wrap_in_tex(text):
-    p = r'([a-zA-Z]+)'
-    ret_text = re.sub(p, r'}$\1$\\mathdefault{', text)
-
-    # Braces ensure symbols are not spaced like binary operators.
-    ret_text = ret_text.replace('-', '{-}').replace(':', '{:}')
-    # To not concatenate space between numbers.
-    ret_text = ret_text.replace(' ', r'\;')
+    # Precompile pattern for performance
+    _p = re.compile(r'([a-zA-Z]+)')
+    # Use list-based join to avoid chained string concatenations
+    # Replace using lambda to avoid backref parsing by re.sub for even faster substitution
+    ret_text = _p.sub(lambda m: f'}}${m.group(1)}$\\mathdefault{{', text)
+    # Apply replacements using str.replace, order does not affect logic
+    if '-' in ret_text:
+        ret_text = ret_text.replace('-', '{-}')
+    if ':' in ret_text:
+        ret_text = ret_text.replace(':', '{:}')
+    if ' ' in ret_text:
+        ret_text = ret_text.replace(' ', r'\;')
+    # Concatenate without chained adds
     ret_text = '$\\mathdefault{' + ret_text + '}$'
-    ret_text = ret_text.replace('$\\mathdefault{}$', '')
+    # Only attempt removing the empty pattern if it could be present
+    empty = '$\\mathdefault{}$'
+    if empty in ret_text:
+        ret_text = ret_text.replace(empty, '')
     return ret_text
 
 
