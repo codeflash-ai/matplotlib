@@ -1742,10 +1742,22 @@ def ship(box: Box, xy: tuple[float, float] = (0, 0)) -> Output:
 
 def Error(msg: str) -> ParserElement:
     """Helper class to raise parser errors."""
+    # Optimization: Cache the Empty parser - since it's stateless and immutable,
+    # creating it once and reusing gives both a memory and time win.
+    # The setParseAction is idempotent, so we can cache the result per unique msg.
+    # Since the parse action holds on to 'msg', we need one parser per unique msg.
+    # We'll use a function attribute (dict) for a simple, fast cache.
+    cache = getattr(Error, "_cache", None)
+    if cache is None:
+        cache = {}
+        setattr(Error, "_cache", cache)
+    if msg in cache:
+        return cache[msg]
     def raise_error(s: str, loc: int, toks: ParseResults) -> T.Any:
         raise ParseFatalException(s, loc, msg)
-
-    return Empty().setParseAction(raise_error)
+    parser = Empty().setParseAction(raise_error)
+    cache[msg] = parser
+    return parser
 
 
 class ParserState:
