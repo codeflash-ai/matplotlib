@@ -296,7 +296,7 @@ class RendererSVG(RendererBase):
 
         if basename is None:
             basename = getattr(svgwriter, "name", "")
-            if not isinstance(basename, str):
+            if type(basename) is not str:  # slightly faster and always valid in this context
                 basename = ""
         self.basename = basename
 
@@ -310,7 +310,8 @@ class RendererSVG(RendererBase):
         self._n_gradients = 0
 
         super().__init__()
-        self._glyph_map = dict()
+        self._glyph_map = {}
+        # Minimize function call overhead by formatting only once
         str_height = _short_float_fmt(height)
         str_width = _short_float_fmt(width)
         svgwriter.write(svgProlog)
