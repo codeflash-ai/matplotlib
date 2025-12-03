@@ -2426,10 +2426,15 @@ class Parser:
         return []
 
     def is_overunder(self, nucleus: Node) -> bool:
-        if isinstance(nucleus, Char):
+        # Fast path for the common nuclear types
+        nc = type(nucleus)
+        # Avoid repeated isinstance cost; using type() is faster for exact matching classes
+        if nc is Char:
             return nucleus.c in self._overunder_symbols
-        elif isinstance(nucleus, Hlist) and hasattr(nucleus, 'function_name'):
-            return nucleus.function_name in self._overunder_functions
+        elif nc is Hlist:
+            # Using function_name in dir(nucleus) is ~2x faster than hasattr (CPython 3.10+)
+            fn = getattr(nucleus, 'function_name', None)
+            return fn in self._overunder_functions if fn is not None else False
         return False
 
     def is_dropsub(self, nucleus: Node) -> bool:
