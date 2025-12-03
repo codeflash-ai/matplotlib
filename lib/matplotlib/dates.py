@@ -1763,7 +1763,7 @@ class DateConverter(units.ConversionInterface):
         or None
         """
         if isinstance(x, np.ndarray):
-            x = x.ravel()
+            x = np.ravel(x)
 
         try:
             x = cbook._safe_first_finite(x)
