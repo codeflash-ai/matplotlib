@@ -152,7 +152,9 @@ class Text(Artist):
             rotation_mode=rotation_mode,
             antialiased=antialiased
         )
-        self.update(kwargs)
+        # Only update if kwargs contains items
+        if kwargs:
+            self.update(kwargs)
 
     def _reset_visual_defaults(
         self,
