@@ -9,6 +9,7 @@ import warnings
 import numpy as np
 
 from matplotlib import _api
+from math import hypot
 
 
 # same algorithm as 3.8's math.comb
@@ -429,8 +430,10 @@ def inside_circle(cx, cy, r):
 # quadratic Bezier lines
 
 def get_cos_sin(x0, y0, x1, y1):
-    dx, dy = x1 - x0, y1 - y0
-    d = (dx * dx + dy * dy) ** .5
+    dx = x1 - x0
+    dy = y1 - y0
+    d = hypot(dx, dy)
+    # Account for divide by zero
     # Account for divide by zero
     if d == 0:
         return 0.0, 0.0
