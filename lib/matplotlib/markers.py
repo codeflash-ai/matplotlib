@@ -247,6 +247,9 @@ class MarkerStyle:
         self._set_fillstyle(fillstyle)
         self._set_marker(marker)
 
+        # Cache the joinstyle name for fast repeated access
+        self._joinstyle_name = self._joinstyle.name if hasattr(self, '_joinstyle') and self._joinstyle is not None else None
+
     def _recache(self):
         if self._marker_function is None:
             return
@@ -288,7 +291,8 @@ class MarkerStyle:
         self._fillstyle = fillstyle
 
     def get_joinstyle(self):
-        return self._joinstyle.name
+        # Use cached joinstyle name for improved performance
+        return self._joinstyle_name
 
     def get_capstyle(self):
         return self._capstyle.name
