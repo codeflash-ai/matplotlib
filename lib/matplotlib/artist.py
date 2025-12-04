@@ -1181,22 +1181,33 @@ class Artist:
         names; it gets formatted with ``type(self)`` and the property name.
         """
         ret = []
-        with cbook._setattr_cm(self, eventson=False):
+        eventson_setter = getattr(self, 'eventson', None)
+        # Remove context manager overhead for bulk updates: Only set/reset eventson if .eventson exists
+        eventson_original = None
+        eventson_exists = eventson_setter is not None
+        if eventson_exists:
+            eventson_original = self.eventson
+            self.eventson = False
+        try:
             for k, v in props.items():
                 # Allow attributes we want to be able to update through
                 # art.update, art.set, setp.
                 if k == "axes":
-                    ret.append(setattr(self, k, v))
+                    setattr(self, k, v)
+                    ret.append(None)  # setattr returns None; preserve behavior
                 else:
                     func = getattr(self, f"set_{k}", None)
-                    if not callable(func):
+                    if func is None or not callable(func):
                         raise AttributeError(
                             errfmt.format(cls=type(self), prop_name=k))
                     ret.append(func(v))
-        if ret:
-            self.pchanged()
-            self.stale = True
-        return ret
+            if ret:
+                self.pchanged()
+                self.stale = True
+            return ret
+        finally:
+            if eventson_exists:
+                self.eventson = eventson_original
 
     def update(self, props):
         """
