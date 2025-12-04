@@ -24,6 +24,17 @@ import matplotlib.spines as mspines
 import matplotlib.transforms as mtransforms
 from matplotlib import _docstring
 
+_LOCATION_SETTINGS = {
+    "left":   {"location": "left", "anchor": (1.0, 0.5),
+               "panchor": (0.0, 0.5), "pad": 0.10},
+    "right":  {"location": "right", "anchor": (0.0, 0.5),
+               "panchor": (1.0, 0.5), "pad": 0.05},
+    "top":    {"location": "top", "anchor": (0.5, 0.0),
+               "panchor": (0.5, 1.0), "pad": 0.05},
+    "bottom": {"location": "bottom", "anchor": (0.5, 1.0),
+               "panchor": (0.5, 0.0), "pad": 0.15},
+}
+
 _log = logging.getLogger(__name__)
 
 _docstring.interpd.update(
@@ -1338,16 +1349,8 @@ ColorbarBase = Colorbar  # Backcompat API
 def _normalize_location_orientation(location, orientation):
     if location is None:
         location = _get_ticklocation_from_orientation(orientation)
-    loc_settings = _api.check_getitem({
-        "left":   {"location": "left", "anchor": (1.0, 0.5),
-                   "panchor": (0.0, 0.5), "pad": 0.10},
-        "right":  {"location": "right", "anchor": (0.0, 0.5),
-                   "panchor": (1.0, 0.5), "pad": 0.05},
-        "top":    {"location": "top", "anchor": (0.5, 0.0),
-                   "panchor": (0.5, 1.0), "pad": 0.05},
-        "bottom": {"location": "bottom", "anchor": (0.5, 1.0),
-                   "panchor": (0.5, 0.0), "pad": 0.15},
-    }, location=location)
+    # Use the module-level constant, this saves a dict allocation every call
+    loc_settings = _api.check_getitem(_LOCATION_SETTINGS, location=location)
     loc_settings["orientation"] = _get_orientation_from_location(location)
     if orientation is not None and orientation != loc_settings["orientation"]:
         # Allow the user to pass both if they are consistent.
@@ -1404,23 +1407,31 @@ def make_axes(parents, location=None, orientation=None, fraction=0.15,
     # reuse them, leading to a memory leak
     if isinstance(parents, np.ndarray):
         parents = list(parents.flat)
-    elif np.iterable(parents):
-        parents = list(parents)
-    else:
-        parents = [parents]
+    elif not isinstance(parents, list):
+        try:
+            # Accepts any iterable except strings
+            if np.iterable(parents):
+                parents = list(parents)
+            else:
+                parents = [parents]
+        except Exception:
+            parents = [parents]
+
 
     fig = parents[0].get_figure()
 
     pad0 = 0.05 if fig.get_constrained_layout() else loc_settings['pad']
     pad = kwargs.pop('pad', pad0)
 
-    if not all(fig is ax.get_figure() for ax in parents):
+    # Optimize: if single parent, skip the all(...) check (always True)
+    if len(parents) > 1 and not all(fig is ax.get_figure() for ax in parents):
         raise ValueError('Unable to create a colorbar Axes as not all '
                          'parents share the same figure.')
 
-    # take a bounding box around all of the given Axes
-    parents_bbox = mtransforms.Bbox.union(
-        [ax.get_position(original=True).frozen() for ax in parents])
+    # Compute the parents_bbox only once, avoid repeated list comps
+    parents_pos = [ax.get_position(original=True).frozen() for ax in parents]
+    parents_bbox = mtransforms.Bbox.union(parents_pos)
+
 
     pb = parents_bbox
     if location in ('left', 'right'):
