@@ -936,24 +936,27 @@ class Text(Artist):
         """
         if not self.get_visible():
             return Bbox.unit()
+        figure = self.figure
         if dpi is None:
-            dpi = self.figure.dpi
-        if self.get_text() == '':
-            with cbook._setattr_cm(self.figure, dpi=dpi):
+            dpi = figure.dpi
+        text = self.get_text()
+        if text == '':
+            with cbook._setattr_cm(figure, dpi=dpi):
                 tx, ty = self._get_xy_display()
                 return Bbox.from_bounds(tx, ty, 0, 0)
 
-        if renderer is not None:
-            self._renderer = renderer
-        if self._renderer is None:
-            self._renderer = self.figure._get_renderer()
-        if self._renderer is None:
+        # Conditional renderer assignment, prioritizing local arg then cached then figure-provided
+        renderer_obj = renderer if renderer is not None else self._renderer
+        if renderer_obj is None:
+            renderer_obj = figure._get_renderer()
+        if renderer_obj is None:
             raise RuntimeError(
                 "Cannot get window extent of text w/o renderer. You likely "
                 "want to call 'figure.draw_without_rendering()' first.")
+        self._renderer = renderer_obj
 
-        with cbook._setattr_cm(self.figure, dpi=dpi):
-            bbox, info, descent = self._get_layout(self._renderer)
+        with cbook._setattr_cm(figure, dpi=dpi):
+            bbox, info, descent = self._get_layout(renderer_obj)
             x, y = self.get_unitless_position()
             x, y = self.get_transform().transform((x, y))
             bbox = bbox.translated(x, y)
