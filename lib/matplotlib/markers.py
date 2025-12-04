@@ -506,7 +506,9 @@ class MarkerStyle:
         self._snap = False
 
     def _half_fill(self):
-        return self.get_fillstyle() in self._half_fillstyles
+        fillstyle = self._fillstyle
+        # Using tuple here ensures O(1) lookup time like set
+        return fillstyle in MarkerStyle._half_fillstyles
 
     def _set_circle(self, size=1.0):
         self._transform = Affine2D().scale(0.5 * size)
