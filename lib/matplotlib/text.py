@@ -244,10 +244,11 @@ class Text(Artist):
         return self.get_transform().transform((x, y))
 
     def _get_multialignment(self):
-        if self._multialignment is not None:
-            return self._multialignment
-        else:
-            return self._horizontalalignment
+        # Optimize conditional by avoiding extra branching and attribute access
+        val = self._multialignment
+        if val is not None:
+            return val
+        return self._horizontalalignment
 
     def _char_index_at(self, x):
         """
