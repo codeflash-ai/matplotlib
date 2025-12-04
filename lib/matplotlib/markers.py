@@ -247,6 +247,10 @@ class MarkerStyle:
         self._set_fillstyle(fillstyle)
         self._set_marker(marker)
 
+        # Optimization: add transform cache attributes for get_transform
+        self._cached_frozen_transform = None
+        self._cached_frozen_full_transform = None
+
     def _recache(self):
         if self._marker_function is None:
             return
@@ -348,9 +352,13 @@ class MarkerStyle:
         `MarkerStyle.get_path()`.
         """
         if self._user_transform is None:
-            return self._transform.frozen()
+            if self._cached_frozen_transform is None:
+                self._cached_frozen_transform = self._transform.frozen()
+            return self._cached_frozen_transform
         else:
-            return (self._transform + self._user_transform).frozen()
+            if self._cached_frozen_full_transform is None:
+                self._cached_frozen_full_transform = (self._transform + self._user_transform).frozen()
+            return self._cached_frozen_full_transform
 
     def get_alt_path(self):
         """
