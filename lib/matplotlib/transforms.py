@@ -2948,7 +2948,11 @@ def interval_contains_open(interval, val):
         Whether *val* is within the *interval*.
     """
     a, b = interval
-    return a < val < b or a > val > b
+    # Compare once for order, then direct interval membership test for speed
+    if a < b:
+        return a < val < b
+    else:
+        return b < val < a
 
 
 def offset_copy(trans, fig=None, x=0.0, y=0.0, units='inches'):
