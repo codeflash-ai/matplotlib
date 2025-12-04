@@ -1569,7 +1569,7 @@ class _AnnotationBase:
         """Check whether the annotation at *xy_pixel* should be drawn."""
         if renderer is None:
             renderer = self.figure._get_renderer()
-        b = self.get_annotation_clip()
+        b = self._annotation_clip
         if b or (b is None and self.xycoords == "data"):
             # check if self.xy is inside the Axes.
             xy_pixel = self._get_position_xy(renderer)
