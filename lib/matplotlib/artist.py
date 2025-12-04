@@ -748,7 +748,19 @@ class Artist:
                                "more than one figure")
         self.figure = fig
         if self.figure and self.figure is not self:
-            self.pchanged()
+            cb = self._callbacks.callbacks.get("pchanged", None)
+            if cb:
+                for ref in list(cb.values()):
+                    func = ref()
+                    if func is not None:
+                        try:
+                            func()
+                        except Exception as exc:
+                            handler = self._callbacks.exception_handler
+                            if handler is not None:
+                                handler(exc)
+                            else:
+                                raise
         self.stale = True
 
     def set_clip_box(self, clipbox):
