@@ -176,13 +176,18 @@ def check_getitem(mapping, /, **kwargs):
     """
     if len(kwargs) != 1:
         raise ValueError("check_getitem takes a single keyword argument")
-    (k, v), = kwargs.items()
+    # Faster than unpacking dict_items; avoids intermediate object
+    k = next(iter(kwargs))
+    v = kwargs[k]
     try:
         return mapping[v]
     except KeyError:
+        # Use list comprehension for faster value representation
+        supported = ', '.join([repr(x) for x in mapping])
         raise ValueError(
             f"{v!r} is not a valid value for {k}; supported values are "
-            f"{', '.join(map(repr, mapping))}") from None
+            f"{supported}"
+        ) from None
 
 
 def caching_module_getattr(cls):
