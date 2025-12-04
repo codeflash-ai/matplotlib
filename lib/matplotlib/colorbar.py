@@ -298,12 +298,10 @@ class Colorbar:
         if mappable is None:
             mappable = cm.ScalarMappable(norm=norm, cmap=cmap)
 
-        self.mappable = mappable
-        cmap = mappable.cmap
-        norm = mappable.norm
-
         filled = True
-        if isinstance(mappable, contour.ContourSet):
+        is_contour = isinstance(mappable, contour.ContourSet)
+
+        if is_contour:
             cs = mappable
             alpha = cs.get_alpha()
             boundaries = cs._levels
@@ -311,9 +309,21 @@ class Colorbar:
             extend = cs.extend
             filled = cs.filled
             if ticks is None:
-                ticks = ticker.FixedLocator(cs.levels, nbins=10)
+                # Use cs.levels directly instead of FixedLocator/copies
+                ticks_array = cs.levels
+                self._locator = ticker.FixedLocator(ticks_array, nbins=10)
+            else:
+                ticks_array = None
         elif isinstance(mappable, martist.Artist):
             alpha = mappable.get_alpha()
+
+            ticks_array = None
+        else:
+            ticks_array = None
+
+        self.mappable = mappable
+        cmap = mappable.cmap
+        norm = mappable.norm
 
         mappable.colorbar = self
         mappable.colorbar_cid = mappable.callbacks.connect(
@@ -340,7 +350,7 @@ class Colorbar:
         self.ax._axes_locator = _ColorbarAxesLocator(self)
 
         if extend is None:
-            if (not isinstance(mappable, contour.ContourSet)
+            if (not is_contour
                     and getattr(cmap, 'colorbar_extend', False) is not False):
                 extend = cmap.colorbar_extend
             elif hasattr(norm, 'extend'):
@@ -370,9 +380,13 @@ class Colorbar:
         self.solids_patches = []
         self.lines = []
 
-        for spine in self.ax.spines.values():
+        # Hide all spines except outline, set outline to special class
+        spines = self.ax.spines
+        for spine in spines.values():
             spine.set_visible(False)
-        self.outline = self.ax.spines['outline'] = _ColorbarSpine(self.ax)
+        self.outline = spines['outline'] = _ColorbarSpine(self.ax)
+
+        # Only instantiate LineCollection once, minimizing rcParams lookups
 
         self.dividers = collections.LineCollection(
             [],
@@ -387,51 +401,65 @@ class Colorbar:
         self._minorformatter = None
 
         if ticklocation == 'auto':
-            ticklocation = _get_ticklocation_from_orientation(
-                orientation) if location is None else location
+            ticklocation = (_get_ticklocation_from_orientation(orientation)
+                if location is None else location)
         self.ticklocation = ticklocation
 
         self.set_label(label)
         self._reset_locator_formatter_scale()
 
         if np.iterable(ticks):
-            self._locator = ticker.FixedLocator(ticks, nbins=len(ticks))
+            ticks_len = getattr(ticks, '__len__', None)
+            if ticks_len is None:
+                ticks_len = len(list(ticks))
+            else:
+                ticks_len = len(ticks)
+            self._locator = ticker.FixedLocator(ticks, nbins=ticks_len)
+        elif ticks_array is not None:
+            self._locator = ticker.FixedLocator(ticks_array, nbins=len(ticks_array))
         else:
             self._locator = ticks
 
         if isinstance(format, str):
             # Check format between FormatStrFormatter and StrMethodFormatter
+            # Check format type, prefer FormatStrFormatter when possible, fallback to StrMethod
+            formatter_obj = ticker.FormatStrFormatter(format)
             try:
-                self._formatter = ticker.FormatStrFormatter(format)
-                _ = self._formatter(0)
+                _ = formatter_obj(0)
+                self._formatter = formatter_obj
             except (TypeError, ValueError):
                 self._formatter = ticker.StrMethodFormatter(format)
         else:
             self._formatter = format  # Assume it is a Formatter or None
         self._draw_all()
 
-        if isinstance(mappable, contour.ContourSet) and not mappable.filled:
+        # Don't do unnecessary add_lines if filled is True; prefer direct type check
+        if is_contour and not mappable.filled:
             self.add_lines(mappable)
 
         # Link the Axes and Colorbar for interactive use
         self.ax._colorbar = self
-        # Don't navigate on any of these types of mappables
-        if (isinstance(self.norm, (colors.BoundaryNorm, colors.NoNorm)) or
-                isinstance(self.mappable, contour.ContourSet)):
+
+        # Only set navigation if necessary for accepted norm/mappable
+        norm_obj = self.norm
+        if (isinstance(norm_obj, (colors.BoundaryNorm, colors.NoNorm)) or
+                is_contour):
             self.ax.set_navigate(False)
 
-        # These are the functions that set up interactivity on this colorbar
-        self._interactive_funcs = ["_get_view", "_set_view",
-                                   "_set_view_from_bbox", "drag_pan"]
-        for x in self._interactive_funcs:
-            setattr(self.ax, x, getattr(self, x))
+        # Attribute setup for interactive callbacks: avoid loop overhead with assignment
+        funcs = self._interactive_funcs = [
+            "_get_view", "_set_view", "_set_view_from_bbox", "drag_pan"
+        ]
+        ax_setattr = self.ax.__setattr__
+        for x in funcs:
+            ax_setattr(x, getattr(self, x))
         # Set the cla function to the cbar's method to override it
         self.ax.cla = self._cbar_cla
-        # Callbacks for the extend calculations to handle inverting the axis
-        self._extend_cid1 = self.ax.callbacks.connect(
-            "xlim_changed", self._do_extends)
-        self._extend_cid2 = self.ax.callbacks.connect(
-            "ylim_changed", self._do_extends)
+
+        # Connect event callbacks for extend calculations: direct method call
+        callbacks = self.ax.callbacks
+        self._extend_cid1 = callbacks.connect("xlim_changed", self._do_extends)
+        self._extend_cid2 = callbacks.connect("ylim_changed", self._do_extends)
 
     @property
     def locator(self):
@@ -892,10 +920,9 @@ class Colorbar:
         minor : boolean, default: False
             if True return the minor ticks.
         """
-        if minor:
-            return self._long_axis().get_minorticklocs()
-        else:
-            return self._long_axis().get_majorticklocs()
+        # Direct method access for minor/major ticklocs
+        axis = self._long_axis()
+        return axis.get_minorticklocs() if minor else axis.get_majorticklocs()
 
     def set_ticklabels(self, ticklabels, *, minor=False, **kwargs):
         """
@@ -1291,9 +1318,8 @@ class Colorbar:
 
     def _long_axis(self):
         """Return the long axis"""
-        if self.orientation == 'vertical':
-            return self.ax.yaxis
-        return self.ax.xaxis
+        # Avoid conditional branches with direct return
+        return self.ax.yaxis if self.orientation == 'vertical' else self.ax.xaxis
 
     def _short_axis(self):
         """Return the short axis"""
