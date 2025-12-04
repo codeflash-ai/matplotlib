@@ -24,6 +24,31 @@ import matplotlib.spines as mspines
 import matplotlib.transforms as mtransforms
 from matplotlib import _docstring
 
+_LOC_SETTINGS = {
+    "left":   {"location": "left", "anchor": (1.0, 0.5),
+               "panchor": (0.0, 0.5), "pad": 0.10},
+    "right":  {"location": "right", "anchor": (0.0, 0.5),
+               "panchor": (1.0, 0.5), "pad": 0.05},
+    "top":    {"location": "top", "anchor": (0.5, 0.0),
+               "panchor": (0.5, 1.0), "pad": 0.05},
+    "bottom": {"location": "bottom", "anchor": (0.5, 1.0),
+               "panchor": (0.5, 0.0), "pad": 0.15},
+}
+
+_LOCATION_TO_ORIENTATION = {
+    None: None,
+    "left": "vertical",
+    "right": "vertical",
+    "top": "horizontal",
+    "bottom": "horizontal",
+}
+
+_ORIENTATION_TO_TICKLOCATION = {
+    None: "right",
+    "vertical": "right",
+    "horizontal": "bottom",
+}
+
 _log = logging.getLogger(__name__)
 
 _docstring.interpd.update(
@@ -1338,16 +1363,14 @@ ColorbarBase = Colorbar  # Backcompat API
 def _normalize_location_orientation(location, orientation):
     if location is None:
         location = _get_ticklocation_from_orientation(orientation)
-    loc_settings = _api.check_getitem({
-        "left":   {"location": "left", "anchor": (1.0, 0.5),
-                   "panchor": (0.0, 0.5), "pad": 0.10},
-        "right":  {"location": "right", "anchor": (0.0, 0.5),
-                   "panchor": (1.0, 0.5), "pad": 0.05},
-        "top":    {"location": "top", "anchor": (0.5, 0.0),
-                   "panchor": (0.5, 1.0), "pad": 0.05},
-        "bottom": {"location": "bottom", "anchor": (0.5, 1.0),
-                   "panchor": (0.5, 0.0), "pad": 0.15},
-    }, location=location)
+    try:
+        # Provide a shallow copy of the dict to maintain previous behavior (if user mutates the returned dict).
+        loc_settings = _LOC_SETTINGS[location].copy()
+    except KeyError:
+        raise ValueError(
+            f"{location!r} is not a valid value for location; "
+            f"supported values are {', '.join(map(repr, _LOC_SETTINGS))}"
+        ) from None
     loc_settings["orientation"] = _get_orientation_from_location(location)
     if orientation is not None and orientation != loc_settings["orientation"]:
         # Allow the user to pass both if they are consistent.
@@ -1356,15 +1379,23 @@ def _normalize_location_orientation(location, orientation):
 
 
 def _get_orientation_from_location(location):
-    return _api.check_getitem(
-        {None: None, "left": "vertical", "right": "vertical",
-         "top": "horizontal", "bottom": "horizontal"}, location=location)
+    try:
+        return _LOCATION_TO_ORIENTATION[location]
+    except KeyError:
+        raise ValueError(
+            f"{location!r} is not a valid value for location; supported values are "
+            f"{', '.join(map(repr, _LOCATION_TO_ORIENTATION))}"
+        ) from None
 
 
 def _get_ticklocation_from_orientation(orientation):
-    return _api.check_getitem(
-        {None: "right", "vertical": "right", "horizontal": "bottom"},
-        orientation=orientation)
+    try:
+        return _ORIENTATION_TO_TICKLOCATION[orientation]
+    except KeyError:
+        raise ValueError(
+            f"{orientation!r} is not a valid value for orientation; supported values are "
+            f"{', '.join(map(repr, _ORIENTATION_TO_TICKLOCATION))}"
+        ) from None
 
 
 @_docstring.interpd
