@@ -418,11 +418,13 @@ def inside_circle(cx, cy, r):
 
         f(xy: tuple[float, float]) -> bool
     """
-    r2 = r ** 2
+    r2 = r * r
 
     def _f(xy):
         x, y = xy
-        return (x - cx) ** 2 + (y - cy) ** 2 < r2
+        dx = x - cx
+        dy = y - cy
+        return dx * dx + dy * dy < r2
     return _f
 
 
