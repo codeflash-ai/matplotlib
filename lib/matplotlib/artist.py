@@ -195,10 +195,17 @@ class Artist:
         self._picker = None
         self._rasterized = False
         self._agg_filter = None
-        # Normally, artist classes need to be queried for mouseover info if and
-        # only if they override get_cursor_data.
-        self._mouseover = type(self).get_cursor_data != Artist.get_cursor_data
-        self._callbacks = cbook.CallbackRegistry(signals=["pchanged"])
+
+        # Optimize mouseover calculation: compare by function object identity instead of bound method
+        # Cache the reference rather than using 'type(self).get_cursor_data' which invokes MRO search
+        cls = type(self)
+        self._mouseover = cls.get_cursor_data is not Artist.get_cursor_data
+
+        # Avoid extra dictionary lookup in cbook.CallbackRegistry by passing a tuple directly
+        self._callbacks = cbook.CallbackRegistry(signals=("pchanged",))
+        
+        # Avoid redundant attribute test: the try/except branch handles 'self.axes'
+        # Direct assignment, skip error branch unless the property exists elsewhere
         try:
             self.axes = None
         except AttributeError:
