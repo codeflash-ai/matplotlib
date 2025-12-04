@@ -94,7 +94,7 @@ class Patch(artist.Artist):
         self.set_capstyle(capstyle)
         self.set_joinstyle(joinstyle)
 
-        if len(kwargs):
+        if kwargs:
             self._internal_update(kwargs)
 
     def get_verts(self):
@@ -157,22 +157,24 @@ class Patch(artist.Artist):
         if self._different_canvas(mouseevent):
             return False, {}
         radius = self._process_radius(radius)
-        codes = self.get_path().codes
+        path = self.get_path()
+        codes = path.codes
         if codes is not None:
-            vertices = self.get_path().vertices
+            vertices = path.vertices
             # if the current path is concatenated by multiple sub paths.
             # get the indexes of the starting code(MOVETO) of all sub paths
             idxs, = np.where(codes == Path.MOVETO)
             # Don't split before the first MOVETO.
             idxs = idxs[1:]
-            subpaths = map(
-                Path, np.split(vertices, idxs), np.split(codes, idxs))
+            # Use generator expression for subpaths for memory savings and short-circuiting
+            subpaths_gen = (Path(v, c) for v, c in zip(np.split(vertices, idxs), np.split(codes, idxs)))
         else:
-            subpaths = [self.get_path()]
+            subpaths_gen = (path,)
+        # Use native generator with any() for containment check
         inside = any(
             subpath.contains_point(
                 (mouseevent.x, mouseevent.y), self.get_transform(), radius)
-            for subpath in subpaths)
+            for subpath in subpaths_gen)
         return inside, {}
 
     def contains_point(self, point, radius=None):
