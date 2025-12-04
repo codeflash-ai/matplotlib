@@ -9,6 +9,7 @@ import warnings
 import numpy as np
 
 from matplotlib import _api
+from math import atan2, pi
 
 
 # same algorithm as 3.8's math.comb
@@ -456,12 +457,12 @@ def check_if_parallel(dx1, dy1, dx2, dy2, tolerance=1.e-5):
         - -1 if two lines are parallel in opposite direction.
         - False otherwise.
     """
-    theta1 = np.arctan2(dx1, dy1)
-    theta2 = np.arctan2(dx2, dy2)
+    theta1 = atan2(dx1, dy1)
+    theta2 = atan2(dx2, dy2)
     dtheta = abs(theta1 - theta2)
     if dtheta < tolerance:
         return 1
-    elif abs(dtheta - np.pi) < tolerance:
+    elif abs(dtheta - pi) < tolerance:
         return -1
     else:
         return False
