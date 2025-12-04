@@ -72,11 +72,15 @@ def get_normal_points(cx, cy, cos_t, sin_t, length):
     if length == 0.:
         return cx, cy, cx, cy
 
-    cos_t1, sin_t1 = sin_t, -cos_t
-    cos_t2, sin_t2 = -sin_t, cos_t
+    # Precompute reused expressions to avoid redundant operations
+    sx = sin_t * length
+    sy = cos_t * length
 
-    x1, y1 = length * cos_t1 + cx, length * sin_t1 + cy
-    x2, y2 = length * cos_t2 + cx, length * sin_t2 + cy
+    x1 = cx + sx
+    y1 = cy - sy    # Equivalent to length * (-cos_t) + cy
+
+    x2 = cx - sx
+    y2 = cy + sy
 
     return x1, y1, x2, y2
 
