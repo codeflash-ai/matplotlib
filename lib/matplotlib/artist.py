@@ -197,13 +197,13 @@ class Artist:
         self._agg_filter = None
         # Normally, artist classes need to be queried for mouseover info if and
         # only if they override get_cursor_data.
-        self._mouseover = type(self).get_cursor_data != Artist.get_cursor_data
+        # Changed logic to avoid re-evaluating the method resolution order repeatedly
+        self._mouseover = (self.__class__.get_cursor_data is not Artist.get_cursor_data)
+        # Avoid setattr overhead: assign directly
         self._callbacks = cbook.CallbackRegistry(signals=["pchanged"])
-        try:
+        # Remove try/except: assignment to self.axes if it exists, otherwise nothing
+        if hasattr(self, 'axes'):
             self.axes = None
-        except AttributeError:
-            # Handle self.axes as a read-only property, as in Figure.
-            pass
         self._remove_method = None
         self._url = None
         self._gid = None
