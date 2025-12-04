@@ -158,31 +158,40 @@ def find_bezier_t_intersecting_with_closedpath(
         raise NonIntersectingPathException(
             "Both points are on the same side of the closed path")
 
-    while True:
+    sx, sy = start
+    ex, ey = end
 
+    while True:
         # return if the distance is smaller than the tolerance
-        if np.hypot(start[0] - end[0], start[1] - end[1]) < tolerance:
+        dx = sx - ex
+        dy = sy - ey
+        if dx * dx + dy * dy < tolerance * tolerance:
             return t0, t1
 
         # calculate the middle point
         middle_t = 0.5 * (t0 + t1)
         middle = bezier_point_at_t(middle_t)
+        mx, my = middle
         middle_inside = inside_closedpath(middle)
 
         if start_inside ^ middle_inside:
             t1 = middle_t
-            if end == middle:
+            if (ex == mx) and (ey == my):
+                # Edge case where infinite loop is possible
+                # Caused by large numbers relative to tolerance
                 # Edge case where infinite loop is possible
                 # Caused by large numbers relative to tolerance
                 return t0, t1
-            end = middle
+            ex, ey = mx, my
         else:
             t0 = middle_t
-            if start == middle:
+            if (sx == mx) and (sy == my):
+                # Edge case where infinite loop is possible
+                # Caused by large numbers relative to tolerance
                 # Edge case where infinite loop is possible
                 # Caused by large numbers relative to tolerance
                 return t0, t1
-            start = middle
+            sx, sy = mx, my
             start_inside = middle_inside
 
 
