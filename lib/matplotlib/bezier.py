@@ -9,6 +9,7 @@ import warnings
 import numpy as np
 
 from matplotlib import _api
+from math import hypot
 
 
 # same algorithm as 3.8's math.comb
@@ -72,11 +73,15 @@ def get_normal_points(cx, cy, cos_t, sin_t, length):
     if length == 0.:
         return cx, cy, cx, cy
 
-    cos_t1, sin_t1 = sin_t, -cos_t
-    cos_t2, sin_t2 = -sin_t, cos_t
+    # Precompute additions to minimize temporaries
+    # The perpendicular directions are (sin_t, -cos_t) and (-sin_t, cos_t)
+    offset_x = sin_t * length
+    offset_y = -cos_t * length
+    x1 = cx + offset_x
+    y1 = cy + offset_y
+    x2 = cx - offset_x
+    y2 = cy - offset_y
 
-    x1, y1 = length * cos_t1 + cx, length * sin_t1 + cy
-    x2, y2 = length * cos_t2 + cx, length * sin_t2 + cy
 
     return x1, y1, x2, y2
 
@@ -429,12 +434,14 @@ def inside_circle(cx, cy, r):
 # quadratic Bezier lines
 
 def get_cos_sin(x0, y0, x1, y1):
-    dx, dy = x1 - x0, y1 - y0
-    d = (dx * dx + dy * dy) ** .5
+    dx = x1 - x0
+    dy = y1 - y0
+    d = hypot(dx, dy)
     # Account for divide by zero
-    if d == 0:
+    if d == 0.0:
         return 0.0, 0.0
-    return dx / d, dy / d
+    inv_d = 1.0 / d
+    return dx * inv_d, dy * inv_d
 
 
 def check_if_parallel(dx1, dy1, dx2, dy2, tolerance=1.e-5):
@@ -546,8 +553,10 @@ def find_control_points(c1x, c1y, mmx, mmy, c2x, c2y):
     Find control points of the Bézier curve passing through (*c1x*, *c1y*),
     (*mmx*, *mmy*), and (*c2x*, *c2y*), at parametric values 0, 0.5, and 1.
     """
-    cmx = .5 * (4 * mmx - (c1x + c2x))
-    cmy = .5 * (4 * mmy - (c1y + c2y))
+    # Avoid extra parentheses
+    # .5 * (4 * mmx - (c1x + c2x)) == 2*mmx - .5*(c1x + c2x)
+    cmx = 2.0 * mmx - 0.5 * (c1x + c2x)
+    cmy = 2.0 * mmy - 0.5 * (c1y + c2y)
     return [(c1x, c1y), (cmx, cmy), (c2x, c2y)]
 
 
@@ -572,31 +581,31 @@ def make_wedged_bezier2(bezier2, width, w1=1., wm=0.5, w2=0.):
     # through c1 and perpendicular to the tangential lines of the
     # Bezier path at a distance of width. Same thing for c3_left and
     # c3_right with respect to c3.
-    c1x_left, c1y_left, c1x_right, c1y_right = (
-        get_normal_points(c1x, c1y, cos_t1, sin_t1, width * w1)
-    )
-    c3x_left, c3y_left, c3x_right, c3y_right = (
-        get_normal_points(c3x, c3y, cos_t2, sin_t2, width * w2)
-    )
+    w1_scaled = width * w1
+    w2_scaled = width * w2
+
+    c1x_left, c1y_left, c1x_right, c1y_right = get_normal_points(c1x, c1y, cos_t1, sin_t1, w1_scaled)
+    c3x_left, c3y_left, c3x_right, c3y_right = get_normal_points(c3x, c3y, cos_t2, sin_t2, w2_scaled)
 
     # find c12, c23 and c123 which are middle points of c1-cm, cm-c3 and
     # c12-c23
-    c12x, c12y = (c1x + cmx) * .5, (c1y + cmy) * .5
-    c23x, c23y = (cmx + c3x) * .5, (cmy + c3y) * .5
-    c123x, c123y = (c12x + c23x) * .5, (c12y + c23y) * .5
+    # Compute values using fused multiply-add for accuracy and speed
+    c12x = (c1x + cmx) * 0.5
+    c12y = (c1y + cmy) * 0.5
+    c23x = (cmx + c3x) * 0.5
+    c23y = (cmy + c3y) * 0.5
+    c123x = (c12x + c23x) * 0.5
+    c123y = (c12y + c23y) * 0.5
+
+    # tangential angle of c123 (angle between c12 and c23)
 
     # tangential angle of c123 (angle between c12 and c23)
     cos_t123, sin_t123 = get_cos_sin(c12x, c12y, c23x, c23y)
 
-    c123x_left, c123y_left, c123x_right, c123y_right = (
-        get_normal_points(c123x, c123y, cos_t123, sin_t123, width * wm)
-    )
+    wm_scaled = width * wm
+    c123x_left, c123y_left, c123x_right, c123y_right = get_normal_points(c123x, c123y, cos_t123, sin_t123, wm_scaled)
 
-    path_left = find_control_points(c1x_left, c1y_left,
-                                    c123x_left, c123y_left,
-                                    c3x_left, c3y_left)
-    path_right = find_control_points(c1x_right, c1y_right,
-                                     c123x_right, c123y_right,
-                                     c3x_right, c3y_right)
+    path_left = find_control_points(c1x_left, c1y_left, c123x_left, c123y_left, c3x_left, c3y_left)
+    path_right = find_control_points(c1x_right, c1y_right, c123x_right, c123y_right, c3x_right, c3y_right)
 
     return path_left, path_right
