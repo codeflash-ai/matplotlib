@@ -1109,21 +1109,25 @@ class _DOF_estimator_geom(_DOF_estimator):
         Build the (nelems, 3) weights coeffs of _triangles angles,
         renormalized so that np.sum(weights, axis=1) == np.ones(nelems)
         """
-        weights = np.zeros([np.size(self._triangles, 0), 3])
+        nelems = np.size(self._triangles, 0)
+        weights = np.zeros((nelems, 3))
         tris_pts = self._tris_pts
-        for ipt in range(3):
-            p0 = tris_pts[:, ipt % 3, :]
-            p1 = tris_pts[:, (ipt+1) % 3, :]
-            p2 = tris_pts[:, (ipt-1) % 3, :]
-            alpha1 = np.arctan2(p1[:, 1]-p0[:, 1], p1[:, 0]-p0[:, 0])
-            alpha2 = np.arctan2(p2[:, 1]-p0[:, 1], p2[:, 0]-p0[:, 0])
-            # In the below formula we could take modulo 2. but
-            # modulo 1. is safer regarding round-off errors (flat triangles).
-            angle = np.abs(((alpha2-alpha1) / np.pi) % 1)
-            # Weight proportional to angle up np.pi/2; null weight for
-            # degenerated cases 0 and np.pi (note that *angle* is normalized
-            # by np.pi).
-            weights[:, ipt] = 0.5 - np.abs(angle-0.5)
+
+        # Vectorized: create index arrays for point orderings (0,1,2), (1,2,0), (2,0,1)
+        p0 = tris_pts[:, [0, 1, 2], :]  # (nelems, 3, 2)
+        p1 = tris_pts[:, [1, 2, 0], :]
+        p2 = tris_pts[:, [2, 0, 1], :]
+
+        # Compute difference vectors for all triangles and vertices
+        diff1 = p1 - p0
+        diff2 = p2 - p0
+
+        alpha1 = np.arctan2(diff1[:, :, 1], diff1[:, :, 0])
+        alpha2 = np.arctan2(diff2[:, :, 1], diff2[:, :, 0])
+        angle = np.abs(((alpha2 - alpha1) / np.pi) % 1)
+        weights = 0.5 - np.abs(angle - 0.5)
+
+        # weights shape is (nelems, 3)
         return weights
 
     def compute_geom_grads(self):
