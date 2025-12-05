@@ -806,17 +806,9 @@ class _ReducedHCT_Element:
         x = ksi[:, 0, 0]
         y = ksi[:, 1, 0]
         z = ksi[:, 2, 0]
-        d2V = _to_matrix_vectorized([
-            [     6.*x,      6.*x,      6.*x],
-            [     6.*y,        0.,        0.],
-            [       0.,      6.*z,        0.],
-            [     2.*z, 2.*z-4.*x, 2.*z-2.*x],
-            [2.*y-4.*x,      2.*y, 2.*y-2.*x],
-            [2.*x-4.*y,        0.,     -2.*y],
-            [     2.*z,        0.,      2.*y],
-            [       0.,      2.*y,      2.*z],
-            [       0., 2.*x-4.*z,     -2.*z],
-            [    -2.*z,     -2.*y,     x-y-z]])
+        # Use np.stack for block-building for higher efficiency
+        d2V = _to_matrix_vectorized_optimized(x, y, z)
+        # Puts back d2V in first apex basis
         # Puts back d2V in first apex basis
         d2V = d2V @ _extract_submatrices(
             self.rotate_d2V, subtri, block_size=3, axis=0)
@@ -824,7 +816,7 @@ class _ReducedHCT_Element:
         prod += _scalar_vectorized(E[:, 0, 0], self.M0 @ d2V)
         prod += _scalar_vectorized(E[:, 1, 0], self.M1 @ d2V)
         prod += _scalar_vectorized(E[:, 2, 0], self.M2 @ d2V)
-        d2sdksi2 = _roll_vectorized(prod, 3*subtri, axis=0)
+        d2sdksi2 = _roll_vectorized(prod, 3 * subtri, axis=0)
         return d2sdksi2
 
     def get_bending_matrices(self, J, ecc):
@@ -1476,7 +1468,8 @@ def _scalar_vectorized(scalar, M):
     """
     Scalar product between scalars and matrices.
     """
-    return scalar[:, np.newaxis, np.newaxis]*M
+    # Broadcasting on singleton axes is already optimized
+    return scalar[:, np.newaxis, np.newaxis] * M
 
 
 def _transpose_vectorized(M):
@@ -1500,17 +1493,17 @@ def _roll_vectorized(M, roll_indices, axis):
     r, c = sh[-2:]
     assert sh[0] == roll_indices.shape[0]
     vec_indices = np.arange(sh[0], dtype=np.int32)
-
-    # Builds the rolled matrix
-    M_roll = np.empty_like(M)
     if axis == 0:
-        for ir in range(r):
-            for ic in range(c):
-                M_roll[:, ir, ic] = M[vec_indices, (-roll_indices+ir) % r, ic]
+        row_indices = (np.arange(r) - roll_indices[:, None]) % r
+        # Use broadcasting/take_along_axis for vectorization over row
+        M_roll = np.take_along_axis(
+            M, row_indices[:, :, None], axis=1
+        )
     else:  # 1
-        for ir in range(r):
-            for ic in range(c):
-                M_roll[:, ir, ic] = M[vec_indices, ir, (-roll_indices+ic) % c]
+        col_indices = (np.arange(c) - roll_indices[:, None]) % c
+        M_roll = np.take_along_axis(
+            M, col_indices[:, None, :], axis=2
+        )
     return M_roll
 
 
@@ -1531,7 +1524,7 @@ def _to_matrix_vectorized(M):
     assert isinstance(M, (tuple, list))
     assert all(isinstance(item, (tuple, list)) for item in M)
     c_vec = np.asarray([len(item) for item in M])
-    assert np.all(c_vec-c_vec[0] == 0)
+    assert np.all(c_vec - c_vec[0] == 0)
     r = len(M)
     c = c_vec[0]
     M00 = np.asarray(M[0][0])
@@ -1557,18 +1550,44 @@ def _extract_submatrices(M, block_indices, block_size, axis):
     assert axis in [0, 1]
 
     r, c = M.shape
+    # Precompute block_offsets for efficient advanced indexing
+    idx = block_indices * block_size
     if axis == 0:
-        sh = [block_indices.shape[0], block_size, c]
+        # Out shape: (batch, block_size, c)
+        idx_broadcast = idx[:, None] + np.arange(block_size)[None, :]
+        idx_broadcast_flat = idx_broadcast.reshape(-1)
+        # Gather blocks for all indices and then reshape
+        M_blocks = M[idx_broadcast_flat, :]
+        M_res = M_blocks.reshape(block_indices.shape[0], block_size, c)
     else:  # 1
-        sh = [block_indices.shape[0], r, block_size]
-
-    dt = M.dtype
-    M_res = np.empty(sh, dtype=dt)
-    if axis == 0:
-        for ir in range(block_size):
-            M_res[:, ir, :] = M[(block_indices*block_size+ir), :]
-    else:  # 1
-        for ic in range(block_size):
-            M_res[:, :, ic] = M[:, (block_indices*block_size+ic)]
-
+        # axis == 1
+        idx_broadcast = idx[:, None] + np.arange(block_size)[None, :]
+        idx_broadcast_flat = idx_broadcast.reshape(-1)
+        M_blocks = M[:, idx_broadcast_flat]
+        M_res = M_blocks.reshape(block_indices.shape[0], r, block_size)
     return M_res
+
+
+
+
+def _to_matrix_vectorized_optimized(x, y, z):
+    """
+    Fast version of _to_matrix_vectorized for this specific construction,
+    given 1D arrays x, y, z of length N, to build (N, 10, 3) directly.
+    """
+    # Each entry is shape (N,)
+    N = x.shape[0]
+    zeros = np.zeros(N, dtype=x.dtype)
+    out = np.empty((N, 10, 3), dtype=x.dtype)
+    # There are 10 rows and 3 cols
+    out[:, 0, 0] = 6. * x; out[:, 0, 1] = 6. * x; out[:, 0, 2] = 6. * x
+    out[:, 1, 0] = 6. * y; out[:, 1, 1] = 0.;    out[:, 1, 2] = 0.
+    out[:, 2, 0] = 0.;    out[:, 2, 1] = 6. * z; out[:, 2, 2] = 0.
+    out[:, 3, 0] = 2. * z; out[:, 3, 1] = 2. * z - 4. * x; out[:, 3, 2] = 2. * z - 2. * x
+    out[:, 4, 0] = 2. * y - 4. * x; out[:, 4, 1] = 2. * y; out[:, 4, 2] = 2. * y - 2. * x
+    out[:, 5, 0] = 2. * x - 4. * y; out[:, 5, 1] = 0.; out[:, 5, 2] = -2. * y
+    out[:, 6, 0] = 2. * z; out[:, 6, 1] = 0.; out[:, 6, 2] = 2. * y
+    out[:, 7, 0] = 0.; out[:, 7, 1] = 2. * y; out[:, 7, 2] = 2. * z
+    out[:, 8, 0] = 0.; out[:, 8, 1] = 2. * x - 4. * z; out[:, 8, 2] = -2. * z
+    out[:, 9, 0] = -2. * z; out[:, 9, 1] = -2. * y; out[:, 9, 2] = x - y - z
+    return out
