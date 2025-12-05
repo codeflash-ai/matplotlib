@@ -1499,18 +1499,18 @@ def _roll_vectorized(M, roll_indices, axis):
     sh = M.shape
     r, c = sh[-2:]
     assert sh[0] == roll_indices.shape[0]
-    vec_indices = np.arange(sh[0], dtype=np.int32)
 
     # Builds the rolled matrix
-    M_roll = np.empty_like(M)
     if axis == 0:
-        for ir in range(r):
-            for ic in range(c):
-                M_roll[:, ir, ic] = M[vec_indices, (-roll_indices+ir) % r, ic]
+        roll_offsets = (-roll_indices[:, None] + np.arange(r)[None, :]) % r
+        M_roll = M[np.arange(sh[0])[:, None, None],
+                   roll_offsets[:, :, None],
+                   np.arange(c)[None, None, :]]
     else:  # 1
-        for ir in range(r):
-            for ic in range(c):
-                M_roll[:, ir, ic] = M[vec_indices, ir, (-roll_indices+ic) % c]
+        roll_offsets = (-roll_indices[:, None] + np.arange(c)[None, :]) % c
+        M_roll = M[np.arange(sh[0])[:, None, None],
+                   np.arange(r)[None, :, None],
+                   roll_offsets[:, None, :]]
     return M_roll
 
 
