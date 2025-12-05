@@ -733,20 +733,35 @@ class _ReducedHCT_Element:
         x_sq = x*x
         y_sq = y*y
         z_sq = z*z
-        dV = _to_matrix_vectorized([
-            [    -3.*x_sq,     -3.*x_sq],
-            [     3.*y_sq,           0.],
-            [          0.,      3.*z_sq],
-            [     -2.*x*z, -2.*x*z+x_sq],
-            [-2.*x*y+x_sq,      -2.*x*y],
-            [ 2.*x*y-y_sq,        -y_sq],
-            [      2.*y*z,         y_sq],
-            [        z_sq,       2.*y*z],
-            [       -z_sq,  2.*x*z-z_sq],
-            [     x*z-y*z,      x*y-y*z]])
-        # Puts back dV in first apex basis
-        dV = dV @ _extract_submatrices(
-            self.rotate_dV, subtri, block_size=2, axis=0)
+
+        # Precompute matrix for all 10 dV expressions at once to avoid repeated array allocations
+        # dV shape: (N, 10, 2)
+        N = x.shape[0]
+        dV = np.empty((N, 10, 2), dtype=x.dtype)
+        dV[:, 0, 0] = -3.*x_sq
+        dV[:, 0, 1] = -3.*x_sq
+        dV[:, 1, 0] = 3.*y_sq
+        dV[:, 1, 1] = 0.
+        dV[:, 2, 0] = 0.
+        dV[:, 2, 1] = 3.*z_sq
+        dV[:, 3, 0] = -2.*x*z
+        dV[:, 3, 1] = -2.*x*z + x_sq
+        dV[:, 4, 0] = -2.*x*y + x_sq
+        dV[:, 4, 1] = -2.*x*y
+        dV[:, 5, 0] = 2.*x*y - y_sq
+        dV[:, 5, 1] = -y_sq
+        dV[:, 6, 0] = 2.*y*z
+        dV[:, 6, 1] = y_sq
+        dV[:, 7, 0] = z_sq
+        dV[:, 7, 1] = 2.*y*z
+        dV[:, 8, 0] = -z_sq
+        dV[:, 8, 1] = 2.*x*z - z_sq
+        dV[:, 9, 0] = x*z - y*z
+        dV[:, 9, 1] = x*y - y*z
+
+        # dV is now shape (N, 10, 2)
+        dV = dV @ _extract_submatrices(self.rotate_dV, subtri, block_size=2, axis=0)
+
 
         prod = self.M @ dV
         prod += _scalar_vectorized(E[:, 0, 0], self.M0 @ dV)
@@ -1405,24 +1420,21 @@ def _safe_inv22_vectorized(M):
     """
     _api.check_shape((None, 2, 2), M=M)
     M_inv = np.empty_like(M)
-    prod1 = M[:, 0, 0]*M[:, 1, 1]
-    delta = prod1 - M[:, 0, 1]*M[:, 1, 0]
+    M00 = M[:, 0, 0]
+    M11 = M[:, 1, 1]
+    M01 = M[:, 0, 1]
+    M10 = M[:, 1, 0]
+    prod1 = M00 * M11
+    delta = prod1 - M01 * M10
+    # threshold for large enough determinant (float64 eps * prod1)
+    rank2 = (np.abs(delta) > 1e-8 * np.abs(prod1))
+    delta_inv = np.zeros_like(delta)
+    delta_inv[rank2] = 1.0 / delta[rank2]
 
-    # We set delta_inv to 0. in case of a rank deficient matrix; a
-    # rank-deficient input matrix *M* will lead to a null matrix in output
-    rank2 = (np.abs(delta) > 1e-8*np.abs(prod1))
-    if np.all(rank2):
-        # Normal 'optimized' flow.
-        delta_inv = 1./delta
-    else:
-        # 'Pathologic' flow.
-        delta_inv = np.zeros(M.shape[0])
-        delta_inv[rank2] = 1./delta[rank2]
-
-    M_inv[:, 0, 0] = M[:, 1, 1]*delta_inv
-    M_inv[:, 0, 1] = -M[:, 0, 1]*delta_inv
-    M_inv[:, 1, 0] = -M[:, 1, 0]*delta_inv
-    M_inv[:, 1, 1] = M[:, 0, 0]*delta_inv
+    M_inv[:, 0, 0] = M11 * delta_inv
+    M_inv[:, 0, 1] = -M01 * delta_inv
+    M_inv[:, 1, 0] = -M10 * delta_inv
+    M_inv[:, 1, 1] = M00 * delta_inv
     return M_inv
 
 
@@ -1476,14 +1488,15 @@ def _scalar_vectorized(scalar, M):
     """
     Scalar product between scalars and matrices.
     """
-    return scalar[:, np.newaxis, np.newaxis]*M
+    # Avoid broadcasting cost: direct multiply and slice
+    return scalar[:, None, None] * M
 
 
 def _transpose_vectorized(M):
     """
     Transposition of an array of matrices *M*.
     """
-    return np.transpose(M, [0, 2, 1])
+    return np.transpose(M, (0, 2, 1))
 
 
 def _roll_vectorized(M, roll_indices, axis):
@@ -1492,26 +1505,27 @@ def _roll_vectorized(M, roll_indices, axis):
     an array of indices *roll_indices*.
     """
     assert axis in [0, 1]
-    ndim = M.ndim
-    assert ndim == 3
-    ndim_roll = roll_indices.ndim
-    assert ndim_roll == 1
-    sh = M.shape
-    r, c = sh[-2:]
-    assert sh[0] == roll_indices.shape[0]
-    vec_indices = np.arange(sh[0], dtype=np.int32)
+    assert M.ndim == 3
+    assert roll_indices.ndim == 1
+    n, r, c = M.shape
+    assert n == roll_indices.shape[0]
+    # manual indexing with advanced indices, avoiding python for loops
+    idx = np.arange(n)
 
-    # Builds the rolled matrix
-    M_roll = np.empty_like(M)
     if axis == 0:
+        res = np.empty_like(M)
+        # Compute all rolled row indices for each matrix
+        row_indices = ((-roll_indices[:, None] + np.arange(r)) % r)
+        for ic in range(c):
+            res[:, :, ic] = M[idx[:, None], row_indices, ic]
+        return res
+    else:  # axis == 1
+        res = np.empty_like(M)
+        # Compute all rolled column indices for each matrix
+        col_indices = ((-roll_indices[:, None] + np.arange(c)) % c)
         for ir in range(r):
-            for ic in range(c):
-                M_roll[:, ir, ic] = M[vec_indices, (-roll_indices+ir) % r, ic]
-    else:  # 1
-        for ir in range(r):
-            for ic in range(c):
-                M_roll[:, ir, ic] = M[vec_indices, ir, (-roll_indices+ic) % c]
-    return M_roll
+            res[:, ir, :] = M[idx[:, None], ir, col_indices]
+        return res
 
 
 def _to_matrix_vectorized(M):
@@ -1565,10 +1579,13 @@ def _extract_submatrices(M, block_indices, block_size, axis):
     dt = M.dtype
     M_res = np.empty(sh, dtype=dt)
     if axis == 0:
+        # Use advanced indexing for speed
+        base_idx = block_indices * block_size
         for ir in range(block_size):
-            M_res[:, ir, :] = M[(block_indices*block_size+ir), :]
+            M_res[:, ir, :] = M[base_idx + ir, :]
     else:  # 1
+        base_idx = block_indices * block_size
         for ic in range(block_size):
-            M_res[:, :, ic] = M[:, (block_indices*block_size+ic)]
+            M_res[:, :, ic] = M[:, base_idx + ic]
 
     return M_res
