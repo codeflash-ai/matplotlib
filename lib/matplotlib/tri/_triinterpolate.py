@@ -1537,10 +1537,11 @@ def _to_matrix_vectorized(M):
     M00 = np.asarray(M[0][0])
     dt = M00.dtype
     sh = [M00.shape[0], r, c]
-    M_ret = np.empty(sh, dtype=dt)
+    M_asarray = np.empty((r, c, M00.shape[0]), dtype=dt)
     for irow in range(r):
         for icol in range(c):
-            M_ret[:, irow, icol] = np.asarray(M[irow][icol])
+            M_asarray[irow, icol] = np.asarray(M[irow][icol])
+    M_ret = np.transpose(M_asarray, (2, 0, 1))
     return M_ret
 
 
