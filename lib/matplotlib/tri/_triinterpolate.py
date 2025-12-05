@@ -687,22 +687,24 @@ class _ReducedHCT_Element:
         Returns the N-array of interpolated function values.
         """
         subtri = np.argmin(alpha, axis=1)[:, 0]
-        ksi = _roll_vectorized(alpha, -subtri, axis=0)
-        E = _roll_vectorized(ecc, -subtri, axis=0)
+        # Optimize _roll_vectorized by using advanced indexing and np.take
+        ksi = _roll_vectorized_fast(alpha, -subtri, axis=0)
+        E = _roll_vectorized_fast(ecc, -subtri, axis=0)
         x = ksi[:, 0, 0]
         y = ksi[:, 1, 0]
         z = ksi[:, 2, 0]
         x_sq = x*x
         y_sq = y*y
         z_sq = z*z
-        V = _to_matrix_vectorized([
+        # Speed up _to_matrix_vectorized
+        V = _to_matrix_vectorized_fast([
             [x_sq*x], [y_sq*y], [z_sq*z], [x_sq*z], [x_sq*y], [y_sq*x],
             [y_sq*z], [z_sq*y], [z_sq*x], [x*y*z]])
         prod = self.M @ V
         prod += _scalar_vectorized(E[:, 0, 0], self.M0 @ V)
         prod += _scalar_vectorized(E[:, 1, 0], self.M1 @ V)
         prod += _scalar_vectorized(E[:, 2, 0], self.M2 @ V)
-        s = _roll_vectorized(prod, 3*subtri, axis=0)
+        s = _roll_vectorized_fast(prod, 3*subtri, axis=0)
         return (dofs @ s)[:, 0, 0]
 
     def get_function_derivatives(self, alpha, J, ecc, dofs):
@@ -1572,3 +1574,49 @@ def _extract_submatrices(M, block_indices, block_size, axis):
             M_res[:, :, ic] = M[:, (block_indices*block_size+ic)]
 
     return M_res
+
+
+def _roll_vectorized_fast(M, roll_indices, axis):
+    """
+    Fast version of _roll_vectorized using numpy advanced indexing.
+    Roll an array of matrices along *axis* (0: rows, 1: columns) according to
+    an array of indices *roll_indices*.
+    """
+    assert axis in [0, 1]
+    assert M.ndim == 3
+    assert roll_indices.ndim == 1
+    N, r, c = M.shape
+    assert N == roll_indices.shape[0]
+    # For axis==0 we roll rows, for axis==1 we roll columns
+    if axis == 0:
+        # For each sample in batch, roll the rows of its matrix by -roll_indices
+        idx = (np.arange(N)[:,None], (np.arange(r)[None,:] - roll_indices[:,None]) % r)
+        # Result shape: N x r x c
+        return M[idx[0], idx[1], :]
+    else:  # 1
+        # roll columns for each sample by -roll_indices
+        idx = (np.arange(N)[:,None], np.arange(r)[None,:], (np.arange(c)[None,:] - roll_indices[:,None]) % c)
+        # Result shape: N x r x c
+        return M[idx[0], idx[1], idx[2]]
+
+
+def _to_matrix_vectorized_fast(M):
+    """
+    Optimized version of _to_matrix_vectorized. Converts a list of lists of column vectors into
+    a shape (N, r, c) numpy array, where N is vector length.
+    """
+    assert isinstance(M, (tuple, list))
+    r = len(M)
+    c = len(M[0])
+    N = np.asarray(M[0][0]).shape[0]
+    dt = np.asarray(M[0][0]).dtype
+    out = np.empty((N, r, c), dtype=dt)
+    for i in range(r):
+        for j in range(c):
+            # Instead of np.asarray for each vector, use direct assignment if already ndarray
+            entry = M[i][j]
+            if isinstance(entry, np.ndarray):
+                out[:,i,j] = entry
+            else:
+                out[:,i,j] = np.asarray(entry)
+    return out
