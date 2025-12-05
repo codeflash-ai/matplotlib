@@ -1232,9 +1232,20 @@ class _Sparse_Matrix_coo:
         *V* dense vector of shape (self.m,).
         """
         assert V.shape == (self.m,)
-        return np.bincount(self.rows,
-                           weights=self.vals*V[self.cols],
-                           minlength=self.m)
+
+        # OPTIMIZATION: Precompute self.vals * V[self.cols] into a contiguous buffer for efficient bincount
+        # Avoids repeated indexing and unnecessary temporary arrays
+        vals = self.vals
+        cols = self.cols
+        rows = self.rows
+        m = self.m
+
+        # Ensure V[self.cols] is fast (contiguous), then multiply
+        # Use np.multiply rather than * for slightly better numpy performance
+        V_cols = np.take(V, cols)  # np.take is often faster than standard indexing for large arrays
+        weights = np.multiply(vals, V_cols)
+
+        return np.bincount(rows, weights=weights, minlength=m)
 
     def compress_csc(self):
         """
