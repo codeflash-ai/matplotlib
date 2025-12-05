@@ -806,17 +806,47 @@ class _ReducedHCT_Element:
         x = ksi[:, 0, 0]
         y = ksi[:, 1, 0]
         z = ksi[:, 2, 0]
-        d2V = _to_matrix_vectorized([
-            [     6.*x,      6.*x,      6.*x],
-            [     6.*y,        0.,        0.],
-            [       0.,      6.*z,        0.],
-            [     2.*z, 2.*z-4.*x, 2.*z-2.*x],
-            [2.*y-4.*x,      2.*y, 2.*y-2.*x],
-            [2.*x-4.*y,        0.,     -2.*y],
-            [     2.*z,        0.,      2.*y],
-            [       0.,      2.*y,      2.*z],
-            [       0., 2.*x-4.*z,     -2.*z],
-            [    -2.*z,     -2.*y,     x-y-z]])
+        N = len(x)
+
+        # Construct full d2V array directly in NumPy. Each row in d2V corresponds to formula from prior list.
+        # Shape: (N, 10, 3)
+        d2V = np.empty((N, 10, 3), dtype=np.float64)
+        d2V[:, 0, 0] = 6. * x
+        d2V[:, 0, 1] = 6. * x
+        d2V[:, 0, 2] = 6. * x
+        d2V[:, 1, 0] = 6. * y
+        d2V[:, 1, 1] = 0.
+        d2V[:, 1, 2] = 0.
+        d2V[:, 2, 0] = 0.
+        d2V[:, 2, 1] = 6. * z
+        d2V[:, 2, 2] = 0.
+        d2V[:, 3, 0] = 2. * z
+        d2V[:, 3, 1] = 2. * z - 4. * x
+        d2V[:, 3, 2] = 2. * z - 2. * x
+        d2V[:, 4, 0] = 2. * y - 4. * x
+        d2V[:, 4, 1] = 2. * y
+        d2V[:, 4, 2] = 2. * y - 2. * x
+        d2V[:, 5, 0] = 2. * x - 4. * y
+        d2V[:, 5, 1] = 0.
+        d2V[:, 5, 2] = -2. * y
+        d2V[:, 6, 0] = 2. * z
+        d2V[:, 6, 1] = 0.
+        d2V[:, 6, 2] = 2. * y
+        d2V[:, 7, 0] = 0.
+        d2V[:, 7, 1] = 2. * y
+        d2V[:, 7, 2] = 2. * z
+        d2V[:, 8, 0] = 0.
+        d2V[:, 8, 1] = 2. * x - 4. * z
+        d2V[:, 8, 2] = -2. * z
+        d2V[:, 9, 0] = -2. * z
+        d2V[:, 9, 1] = -2. * y
+        d2V[:, 9, 2] = x - y - z
+
+        # The following undoes _to_matrix_vectorized with direct memory layout.
+        # d2V shape is now (N, 10, 3) to match list-of-lists construction.
+        # Next step: reference _extract_submatrices and @ operator as written.
+
+        # Puts back d2V in first apex basis (uses optimized d2V from above)
         # Puts back d2V in first apex basis
         d2V = d2V @ _extract_submatrices(
             self.rotate_d2V, subtri, block_size=3, axis=0)
@@ -898,10 +928,20 @@ class _ReducedHCT_Element:
         Ji11 = J_inv[:, 1, 1]
         Ji10 = J_inv[:, 1, 0]
         Ji01 = J_inv[:, 0, 1]
-        H_rot = _to_matrix_vectorized([
-            [Ji00*Ji00, Ji10*Ji10, Ji00*Ji10],
-            [Ji01*Ji01, Ji11*Ji11, Ji01*Ji11],
-            [2*Ji00*Ji01, 2*Ji11*Ji10, Ji00*Ji11+Ji10*Ji01]])
+
+        # Vectorized construction of H_rot - optimized implementation replacing prior Python list expansion
+        N = Ji00.shape[0]
+        H_rot = np.empty((N, 3, 3), dtype=np.float64)
+        H_rot[:, 0, 0] = Ji00 * Ji00
+        H_rot[:, 0, 1] = Ji10 * Ji10
+        H_rot[:, 0, 2] = Ji00 * Ji10
+        H_rot[:, 1, 0] = Ji01 * Ji01
+        H_rot[:, 1, 1] = Ji11 * Ji11
+        H_rot[:, 1, 2] = Ji01 * Ji11
+        H_rot[:, 2, 0] = 2 * Ji00 * Ji01
+        H_rot[:, 2, 1] = 2 * Ji11 * Ji10
+        H_rot[:, 2, 2] = Ji00 * Ji11 + Ji10 * Ji01
+
         if not return_area:
             return H_rot
         else:
@@ -1483,6 +1523,7 @@ def _transpose_vectorized(M):
     """
     Transposition of an array of matrices *M*.
     """
+    # Already optimal for array-of-matrices
     return np.transpose(M, [0, 2, 1])
 
 
