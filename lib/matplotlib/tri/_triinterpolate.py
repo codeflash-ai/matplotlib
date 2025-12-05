@@ -898,10 +898,20 @@ class _ReducedHCT_Element:
         Ji11 = J_inv[:, 1, 1]
         Ji10 = J_inv[:, 1, 0]
         Ji01 = J_inv[:, 0, 1]
-        H_rot = _to_matrix_vectorized([
-            [Ji00*Ji00, Ji10*Ji10, Ji00*Ji10],
-            [Ji01*Ji01, Ji11*Ji11, Ji01*Ji11],
-            [2*Ji00*Ji01, 2*Ji11*Ji10, Ji00*Ji11+Ji10*Ji01]])
+        # Vectorized construction: avoid _to_matrix_vectorized
+        # Build (N, 3, 3) directly
+        N = Ji00.shape[0]
+        H_rot = np.empty((N, 3, 3), dtype=J.dtype)
+        H_rot[:, 0, 0] = Ji00 * Ji00
+        H_rot[:, 0, 1] = Ji10 * Ji10
+        H_rot[:, 0, 2] = Ji00 * Ji10
+        H_rot[:, 1, 0] = Ji01 * Ji01
+        H_rot[:, 1, 1] = Ji11 * Ji11
+        H_rot[:, 1, 2] = Ji01 * Ji11
+        H_rot[:, 2, 0] = 2 * Ji00 * Ji01
+        H_rot[:, 2, 1] = 2 * Ji11 * Ji10
+        H_rot[:, 2, 2] = Ji00 * Ji11 + Ji10 * Ji01
+
         if not return_area:
             return H_rot
         else:
@@ -1405,24 +1415,25 @@ def _safe_inv22_vectorized(M):
     """
     _api.check_shape((None, 2, 2), M=M)
     M_inv = np.empty_like(M)
-    prod1 = M[:, 0, 0]*M[:, 1, 1]
-    delta = prod1 - M[:, 0, 1]*M[:, 1, 0]
-
-    # We set delta_inv to 0. in case of a rank deficient matrix; a
-    # rank-deficient input matrix *M* will lead to a null matrix in output
-    rank2 = (np.abs(delta) > 1e-8*np.abs(prod1))
+    prod1 = M[:, 0, 0] * M[:, 1, 1]
+    delta = prod1 - M[:, 0, 1] * M[:, 1, 0]
+    rank2 = (np.abs(delta) > 1e-8 * np.abs(prod1))
     if np.all(rank2):
-        # Normal 'optimized' flow.
-        delta_inv = 1./delta
+        delta_inv = 1.0 / delta
+        # Direct broadcast: single allocation and assignment
+        M_inv[:, 0, 0] = M[:, 1, 1] * delta_inv
+        M_inv[:, 0, 1] = -M[:, 0, 1] * delta_inv
+        M_inv[:, 1, 0] = -M[:, 1, 0] * delta_inv
+        M_inv[:, 1, 1] = M[:, 0, 0] * delta_inv
     else:
-        # 'Pathologic' flow.
-        delta_inv = np.zeros(M.shape[0])
-        delta_inv[rank2] = 1./delta[rank2]
-
-    M_inv[:, 0, 0] = M[:, 1, 1]*delta_inv
-    M_inv[:, 0, 1] = -M[:, 0, 1]*delta_inv
-    M_inv[:, 1, 0] = -M[:, 1, 0]*delta_inv
-    M_inv[:, 1, 1] = M[:, 0, 0]*delta_inv
+        delta_inv = np.zeros(M.shape[0], dtype=M.dtype)
+        idx = np.where(rank2)[0]
+        delta_inv[idx] = 1.0 / delta[idx]
+        # Avoid multiplying with zero elements for pathological case
+        M_inv[:, 0, 0] = M[:, 1, 1] * delta_inv
+        M_inv[:, 0, 1] = -M[:, 0, 1] * delta_inv
+        M_inv[:, 1, 0] = -M[:, 1, 0] * delta_inv
+        M_inv[:, 1, 1] = M[:, 0, 0] * delta_inv
     return M_inv
 
 
