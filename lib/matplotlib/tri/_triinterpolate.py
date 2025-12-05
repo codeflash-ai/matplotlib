@@ -1262,10 +1262,11 @@ class _Sparse_Matrix_coo:
         """
         Return a dense matrix representing self, mainly for debugging purposes.
         """
-        ret = np.zeros([self.n, self.m], dtype=np.float64)
-        nvals = self.vals.size
-        for i in range(nvals):
-            ret[self.rows[i], self.cols[i]] += self.vals[i]
+        # Optimized: use numpy.add.at for direct dispatch, avoid explicit Python loop
+        ret = np.zeros((self.n, self.m), dtype=np.float64)
+        # If vals is empty, avoid numpy.add.at overhead (noop is faster than entering add.at for empty)
+        if self.vals.size: 
+            np.add.at(ret, (self.rows, self.cols), self.vals)
         return ret
 
     def __str__(self):
