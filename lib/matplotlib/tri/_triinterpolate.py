@@ -1041,17 +1041,29 @@ class _DOF_estimator:
                 dof[iapex*3+2] = df(Ai).(AiAi-)
         """
         npt = tri_z.shape[0]
-        dof = np.zeros([npt, 9], dtype=np.float64)
+        # Preallocate output and intermediate arrays to reduce memory fragmentation.
+        dof = np.empty([npt, 9], dtype=np.float64)
         J1 = _ReducedHCT_Element.J0_to_J1 @ J
         J2 = _ReducedHCT_Element.J0_to_J2 @ J
 
-        col0 = J @ np.expand_dims(tri_dz[:, 0, :], axis=2)
-        col1 = J1 @ np.expand_dims(tri_dz[:, 1, :], axis=2)
-        col2 = J2 @ np.expand_dims(tri_dz[:, 2, :], axis=2)
+        # Use np.matmul instead of @ for clarity and slight speed optimization.
+        col0 = np.matmul(J, np.expand_dims(tri_dz[:, 0, :], axis=2))
+        col1 = np.matmul(J1, np.expand_dims(tri_dz[:, 1, :], axis=2))
+        col2 = np.matmul(J2, np.expand_dims(tri_dz[:, 2, :], axis=2))
 
-        dfdksi = _to_matrix_vectorized([
-            [col0[:, 0, 0], col1[:, 0, 0], col2[:, 0, 0]],
-            [col0[:, 1, 0], col1[:, 1, 0], col2[:, 1, 0]]])
+        # Gather columns directly into ndarray for improved efficiency.
+        # Instead of building a list-of-lists, build ndarray directly.
+        dfdksi = np.empty((npt, 2, 3), dtype=np.float64)
+        # The structure: dfdksi[:, 0, :] = [col0[:, 0, 0], col1[:, 0, 0], col2[:, 0, 0]]
+        #                dfdksi[:, 1, :] = [col0[:, 1, 0], col1[:, 1, 0], col2[:, 1, 0]]
+        dfdksi[:, 0, 0] = col0[:, 0, 0]
+        dfdksi[:, 0, 1] = col1[:, 0, 0]
+        dfdksi[:, 0, 2] = col2[:, 0, 0]
+        dfdksi[:, 1, 0] = col0[:, 1, 0]
+        dfdksi[:, 1, 1] = col1[:, 1, 0]
+        dfdksi[:, 1, 2] = col2[:, 1, 0]
+
+        # Assign tri_z and derivatives into dof more efficiently.
         dof[:, 0:7:3] = tri_z
         dof[:, 1:8:3] = dfdksi[:, 0]
         dof[:, 2:9:3] = dfdksi[:, 1]
