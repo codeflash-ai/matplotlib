@@ -2296,22 +2296,38 @@ def _make_getset_interval(method_name, lim_name, attr_name):
     ``set_{data,view}_interval`` implementations.
     """
 
+
+    # Precompute attribute lookups for better runtime efficiency.
+    lim_name_str = lim_name
+    attr_name_str = attr_name
+
     def getter(self):
         # docstring inherited.
-        return getattr(getattr(self.axes, lim_name), attr_name)
+        lim = getattr(self.axes, lim_name_str)
+        return getattr(lim, attr_name_str)
+
 
     def setter(self, vmin, vmax, ignore=False):
         # docstring inherited.
+        # docstring inherited.
+        lim = getattr(self.axes, lim_name_str)
         if ignore:
-            setattr(getattr(self.axes, lim_name), attr_name, (vmin, vmax))
+            setattr(lim, attr_name_str, (vmin, vmax))
         else:
-            oldmin, oldmax = getter(self)
+            oldmin, oldmax = getattr(lim, attr_name_str)
             if oldmin < oldmax:
-                setter(self, min(vmin, vmax, oldmin), max(vmin, vmax, oldmax),
-                       ignore=True)
+                # Avoid additional function call overhead by not using getter/setter recursion
+                setattr(
+                    lim,
+                    attr_name_str,
+                    (min(vmin, vmax, oldmin), max(vmin, vmax, oldmax))
+                )
             else:
-                setter(self, max(vmin, vmax, oldmin), min(vmin, vmax, oldmax),
-                       ignore=True)
+                setattr(
+                    lim,
+                    attr_name_str,
+                    (max(vmin, vmax, oldmin), min(vmin, vmax, oldmax))
+                )
         self.stale = True
 
     getter.__name__ = f"get_{method_name}_interval"
