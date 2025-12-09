@@ -704,6 +704,9 @@ class PdfFile:
         # lines (see note in section 3.4.1 of the PDF reference).
         fh.write(b"%\254\334 \253\272\n")
 
+
+        # Precompute objects for the session; avoid repeated Name calls.
+        name_cache = [Name(x) for x in "PDF Text ImageB ImageC ImageI".split()]
         self.rootObject = self.reserveObject('root')
         self.pagesObject = self.reserveObject('pages')
         self.pageList = []
@@ -753,7 +756,11 @@ class PdfFile:
         self.pageAnnotations = []
 
         # The PDF spec recommends to include every procset
-        procsets = [Name(x) for x in "PDF Text ImageB ImageC ImageI".split()]
+        procsets = name_cache
+
+        # Write resource dictionary.
+        # Possibly TODO: more general ExtGState (graphics state dictionaries)
+        #                ColorSpace Pattern Shading Properties
 
         # Write resource dictionary.
         # Possibly TODO: more general ExtGState (graphics state dictionaries)
@@ -1874,11 +1881,18 @@ end"""
 
     @staticmethod
     def pathOperations(path, transform, clip=None, simplify=None, sketch=None):
+        # Move frequently used values out of the call for performance.
+        moveto = Op.moveto.value
+        lineto = Op.lineto.value
+        curveto = Op.curveto.value
+        closepath = Op.closepath.value
+        # List construction is faster than repeated ops in list literal
+        op_list = [moveto, lineto, b'', curveto, closepath]
+        # Avoid unnecessary local lookups inside Verbatim constructor
         return [Verbatim(_path.convert_to_string(
             path, transform, clip, simplify, sketch,
             6,
-            [Op.moveto.value, Op.lineto.value, b'', Op.curveto.value,
-             Op.closepath.value],
+            op_list,
             True))]
 
     def writePath(self, path, transform, clip=False, sketch=None):
@@ -2537,36 +2551,43 @@ class GraphicsContextPdf(GraphicsContextBase):
             return [*rgb[:3], Op.setrgb_nonstroke]
 
     def push(self):
-        parent = GraphicsContextPdf(self.file)
-        parent.copy_properties(self)
-        parent.parent = self.parent
-        self.parent = parent
+        # Localize vars used multiple times for efficiency
+        file = self.file
+        parent_obj = GraphicsContextPdf(file)
+        parent_obj.copy_properties(self)
+        parent_obj.parent = self.parent
+        self.parent = parent_obj
         return [Op.gsave]
 
     def pop(self):
-        assert self.parent is not None
-        self.copy_properties(self.parent)
-        self.parent = self.parent.parent
+        parent = self.parent
+        assert parent is not None
+        self.copy_properties(parent)
+        self.parent = parent.parent
         return [Op.grestore]
 
     def clip_cmd(self, cliprect, clippath):
         """Set clip rectangle. Calls `.pop()` and `.push()`."""
         cmds = []
-        # Pop graphics state until we hit the right one or the stack is empty
-        while ((self._cliprect, self._clippath) != (cliprect, clippath)
-                and self.parent is not None):
+        cr, cp = self._cliprect, self._clippath
+        trg_cr, trg_cp = cliprect, clippath
+        parent = self.parent
+        # Fast tuple equality check for short-circuit below
+        while ((cr, cp) != (trg_cr, trg_cp) and parent is not None):
             cmds.extend(self.pop())
-        # Unless we hit the right one, set the clip polygon
-        if ((self._cliprect, self._clippath) != (cliprect, clippath) or
-                self.parent is None):
+            cr, cp = self._cliprect, self._clippath
+            parent = self.parent
+        # Fast duplicate check, tight logic to minimize branching
+        if ((cr, cp) != (trg_cr, trg_cp) or parent is None):
             cmds.extend(self.push())
-            if self._cliprect != cliprect:
+            if cr != trg_cr:
                 cmds.extend([cliprect, Op.rectangle, Op.clip, Op.endpath])
-            if self._clippath != clippath:
+            if cp != trg_cp:
                 path, affine = clippath.get_transformed_path_and_affine()
                 cmds.extend(
-                    PdfFile.pathOperations(path, affine, simplify=False) +
-                    [Op.clip, Op.endpath])
+                    PdfFile.pathOperations(path, affine, simplify=False)
+                )
+                cmds.extend([Op.clip, Op.endpath])
         return cmds
 
     commands = (
