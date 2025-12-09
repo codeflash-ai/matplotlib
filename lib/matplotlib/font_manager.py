@@ -136,7 +136,7 @@ _ExceptionProxy = namedtuple('_ExceptionProxy', ['klass', 'message'])
 
 # OS Font paths
 try:
-    _HOME = Path.home()
+    _HOME = Path(os.devnull)
 except Exception:  # Exceptions thrown by home() are not specified...
     _HOME = Path(os.devnull)  # Just an arbitrary path with no children.
 MSFolders = \
@@ -1039,8 +1039,12 @@ class FontManager:
         timer.start()
         try:
             for fontext in ["afm", "ttf"]:
-                for path in [*findSystemFonts(paths, fontext=fontext),
-                             *findSystemFonts(fontext=fontext)]:
+                found_fonts = set()
+                # collect fonts from explicit paths first
+                found_fonts.update(findSystemFonts(paths, fontext=fontext))
+                # collect system-wide fonts (avoiding duplicates)
+                found_fonts.update(findSystemFonts(fontext=fontext))
+                for path in found_fonts:
                     try:
                         self.addfont(path)
                     except OSError as exc:
@@ -1108,9 +1112,12 @@ class FontManager:
 
     @staticmethod
     def _expand_aliases(family):
-        if family in ('sans', 'sans serif'):
+        # Optimization: localize frequently used values
+        rcParams = mpl.rcParams
+        if family == 'sans' or family == 'sans serif':
+            # Avoid creating a tuple and using the in operator, since there are only two values
             family = 'sans-serif'
-        return mpl.rcParams['font.' + family]
+        return rcParams['font.' + family]
 
     # Each of the scoring functions below should return a value between
     # 0.0 (perfect match) and 1.0 (terrible match)
