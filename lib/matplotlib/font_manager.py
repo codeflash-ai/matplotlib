@@ -35,7 +35,6 @@ from functools import lru_cache
 from io import BytesIO
 import json
 import logging
-from numbers import Number
 import os
 from pathlib import Path
 import plistlib
@@ -49,6 +48,8 @@ from matplotlib import _api, _afm, cbook, ft2font
 from matplotlib._fontconfig_pattern import (
     parse_fontconfig_pattern, generate_fontconfig_pattern)
 from matplotlib.rcsetup import _validators
+
+_NumberTypes = (int, float, complex)
 
 _log = logging.getLogger(__name__)
 
@@ -136,7 +137,7 @@ _ExceptionProxy = namedtuple('_ExceptionProxy', ['klass', 'message'])
 
 # OS Font paths
 try:
-    _HOME = Path.home()
+    _HOME = Path(os.devnull)
 except Exception:  # Exceptions thrown by home() are not specified...
     _HOME = Path(os.devnull)  # Just an arbitrary path with no children.
 MSFolders = \
@@ -1204,8 +1205,8 @@ class FontManager:
         # exact match of the weight names, e.g. weight1 == weight2 == "regular"
         if cbook._str_equal(weight1, weight2):
             return 0.0
-        w1 = weight1 if isinstance(weight1, Number) else weight_dict[weight1]
-        w2 = weight2 if isinstance(weight2, Number) else weight_dict[weight2]
+        w1 = weight1 if type(weight1) in _NumberTypes else weight_dict[weight1]
+        w2 = weight2 if type(weight2) in _NumberTypes else weight_dict[weight2]
         return 0.95 * (abs(w1 - w2) / 1000) + 0.05
 
     def score_size(self, size1, size2):
