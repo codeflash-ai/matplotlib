@@ -2625,12 +2625,27 @@ class GraphicsContextPdf(GraphicsContextBase):
         """
         Copy properties of other into self.
         """
-        super().copy_properties(other)
-        fillcolor = getattr(other, '_fillcolor', self._fillcolor)
-        effective_alphas = getattr(other, '_effective_alphas',
+        self._alpha = other._alpha
+        self._forced_alpha = other._forced_alpha
+        self._antialiased = other._antialiased
+        self._capstyle = other._capstyle
+        self._cliprect = other._cliprect
+        self._clippath = other._clippath
+        self._dashes = other._dashes
+        self._joinstyle = other._joinstyle
+        self._linestyle = other._linestyle
+        self._linewidth = other._linewidth
+        self._rgb = other._rgb
+        self._hatch = other._hatch
+        self._hatch_color = other._hatch_color
+        self._hatch_linewidth = other._hatch_linewidth
+        self._url = other._url
+        self._gid = other._gid
+        self._snap = other._snap
+        self._sketch = other._sketch
+        self._fillcolor = getattr(other, '_fillcolor', self._fillcolor)
+        self._effective_alphas = getattr(other, '_effective_alphas',
                                    self._effective_alphas)
-        self._fillcolor = fillcolor
-        self._effective_alphas = effective_alphas
 
     def finalize(self):
         """
