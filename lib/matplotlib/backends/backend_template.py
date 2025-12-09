@@ -32,7 +32,11 @@ method), you can register it as the default handler for a given file type::
 from matplotlib import _api
 from matplotlib._pylab_helpers import Gcf
 from matplotlib.backend_bases import (
-     FigureCanvasBase, FigureManagerBase, GraphicsContextBase, RendererBase)
+    FigureCanvasBase,
+    FigureManagerBase,
+    GraphicsContextBase,
+    RendererBase,
+)
 from matplotlib.figure import Figure
 
 
@@ -48,6 +52,7 @@ class RendererTemplate(RendererBase):
     def __init__(self, dpi):
         super().__init__()
         self.dpi = dpi
+        self._gc_template = GraphicsContextTemplate()
 
     def draw_path(self, gc, path, transform, rgbFace=None):
         pass
@@ -55,26 +60,26 @@ class RendererTemplate(RendererBase):
     # draw_markers is optional, and we get more correct relative
     # timings by leaving it out.  backend implementers concerned with
     # performance will probably want to implement it
-#     def draw_markers(self, gc, marker_path, marker_trans, path, trans,
-#                      rgbFace=None):
-#         pass
+    #     def draw_markers(self, gc, marker_path, marker_trans, path, trans,
+    #                      rgbFace=None):
+    #         pass
 
     # draw_path_collection is optional, and we get more correct
     # relative timings by leaving it out. backend implementers concerned with
     # performance will probably want to implement it
-#     def draw_path_collection(self, gc, master_transform, paths,
-#                              all_transforms, offsets, offset_trans,
-#                              facecolors, edgecolors, linewidths, linestyles,
-#                              antialiaseds):
-#         pass
+    #     def draw_path_collection(self, gc, master_transform, paths,
+    #                              all_transforms, offsets, offset_trans,
+    #                              facecolors, edgecolors, linewidths, linestyles,
+    #                              antialiaseds):
+    #         pass
 
     # draw_quad_mesh is optional, and we get more correct
     # relative timings by leaving it out.  backend implementers concerned with
     # performance will probably want to implement it
-#     def draw_quad_mesh(self, gc, master_transform, meshWidth, meshHeight,
-#                        coordinates, offsets, offsetTrans, facecolors,
-#                        antialiased, edgecolors):
-#         pass
+    #     def draw_quad_mesh(self, gc, master_transform, meshWidth, meshHeight,
+    #                        coordinates, offsets, offsetTrans, facecolors,
+    #                        antialiased, edgecolors):
+    #         pass
 
     def draw_image(self, gc, x, y, im):
         pass
@@ -95,7 +100,7 @@ class RendererTemplate(RendererBase):
 
     def new_gc(self):
         # docstring inherited
-        return GraphicsContextTemplate()
+        return self._gc_template
 
     def points_to_pixels(self, points):
         # if backend doesn't have dpi, e.g., postscript or svg
@@ -185,7 +190,7 @@ class FigureCanvasTemplate(FigureCanvasBase):
 
     # If the file type is not in the base set of filetypes,
     # you should add it to the class-scope filetypes dictionary as follows:
-    filetypes = {**FigureCanvasBase.filetypes, 'foo': 'My magic Foo format'}
+    filetypes = {**FigureCanvasBase.filetypes, "foo": "My magic Foo format"}
 
     def print_foo(self, filename, **kwargs):
         """
@@ -200,7 +205,7 @@ class FigureCanvasTemplate(FigureCanvasBase):
         self.draw()
 
     def get_default_filetype(self):
-        return 'foo'
+        return "foo"
 
 
 ########################################################################
