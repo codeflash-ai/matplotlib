@@ -29,7 +29,6 @@ from __future__ import annotations
 
 from base64 import b64encode
 from collections import namedtuple
-import copy
 import dataclasses
 from functools import lru_cache
 from io import BytesIO
@@ -902,7 +901,12 @@ class FontProperties:
 
     def copy(self):
         """Return a copy of self."""
-        return copy.copy(self)
+        # Optimize: direct instance creation instead of using copy.copy(self)
+        # This avoids unnecessary lookup and internal machinery of copy module for simple objects.
+        cls = self.__class__
+        result = cls.__new__(cls)
+        result.__dict__ = self.__dict__.copy()
+        return result
 
     # Aliases
     set_name = set_family
