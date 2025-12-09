@@ -2538,7 +2538,7 @@ class GraphicsContextPdf(GraphicsContextBase):
 
     def push(self):
         parent = GraphicsContextPdf(self.file)
-        parent.copy_properties(self)
+        parent.__dict__.update(self.__dict__)
         parent.parent = self.parent
         self.parent = parent
         return [Op.gsave]
