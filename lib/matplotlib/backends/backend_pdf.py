@@ -230,17 +230,30 @@ def _calculate_quad_point_coordinates(x, y, width, height, angle=0):
     """
     Calculate the coordinates of rectangle when rotated by angle around x, y
     """
+    angle_rad = math.radians(-angle)
+    sin_angle = math.sin(angle_rad)
+    cos_angle = math.cos(angle_rad)
+    hx_s = height * sin_angle
+    hx_c = height * cos_angle
+    wx_c = width * cos_angle
+    wx_s = width * sin_angle
 
-    angle = math.radians(-angle)
-    sin_angle = math.sin(angle)
-    cos_angle = math.cos(angle)
-    a = x + height * sin_angle
-    b = y + height * cos_angle
-    c = x + width * cos_angle + height * sin_angle
-    d = y - width * sin_angle + height * cos_angle
-    e = x + width * cos_angle
-    f = y - width * sin_angle
-    return ((x, y), (e, f), (c, d), (a, b))
+    # Minimize recalculation of repeated terms
+    x_hs = x + hx_s
+    y_hc = y + hx_c
+
+    x_wc = x + wx_c
+    y_ws = y - wx_s
+
+    x_wc_hs = x + wx_c + hx_s
+    y_ws_hc = y - wx_s + hx_c
+
+    # Return points as before: (x, y), (e, f), (c, d), (a, b)
+    return ((x, y),
+            (x_wc, y_ws),
+            (x_wc_hs, y_ws_hc),
+            (x_hs, y_hc)
+           )
 
 
 def _get_coordinates_of_block(x, y, width, height, angle=0):
@@ -248,9 +261,8 @@ def _get_coordinates_of_block(x, y, width, height, angle=0):
     Get the coordinates of rotated rectangle and rectangle that covers the
     rotated rectangle.
     """
+    vertices = _calculate_quad_point_coordinates(x, y, width, height, angle)
 
-    vertices = _calculate_quad_point_coordinates(x, y, width,
-                                                 height, angle)
 
     # Find min and max values for rectangle
     # adjust so that QuadPoints is inside Rect
@@ -259,12 +271,21 @@ def _get_coordinates_of_block(x, y, width, height, angle=0):
     # border of Rect.
 
     pad = 0.00001 if angle % 90 else 0
-    min_x = min(v[0] for v in vertices) - pad
-    min_y = min(v[1] for v in vertices) - pad
-    max_x = max(v[0] for v in vertices) + pad
-    max_y = max(v[1] for v in vertices) + pad
-    return (tuple(itertools.chain.from_iterable(vertices)),
-            (min_x, min_y, max_x, max_y))
+
+    # Unpack vertices for min/max directly for improved performance
+    x0, y0 = vertices[0]
+    x1, y1 = vertices[1]
+    x2, y2 = vertices[2]
+    x3, y3 = vertices[3]
+
+    min_x = min(x0, x1, x2, x3) - pad
+    min_y = min(y0, y1, y2, y3) - pad
+    max_x = max(x0, x1, x2, x3) + pad
+    max_y = max(y0, y1, y2, y3) + pad
+
+    # Flatten using tuple concatenation, which is faster than itertools.chain
+    quadpoints = (x0, y0, x1, y1, x2, y2, x3, y3)
+    return quadpoints, (min_x, min_y, max_x, max_y)
 
 
 def _get_link_annotation(gc, x, y, width, height, angle=0):
