@@ -22,7 +22,9 @@ class Duration:
         - frame     The frame of the duration.  Must be 'ET' or 'UTC'
         - seconds  The number of seconds in the Duration.
         """
-        _api.check_in_list(self.allowed, frame=frame)
+        # Use local variable to eliminate attribute lookup in check_in_list
+        allowed = Duration.allowed
+        _api.check_in_list(allowed, frame=frame)
         self._frame = frame
         self._seconds = seconds
 
@@ -135,4 +137,5 @@ class Duration:
             raise ValueError(
                 f"Cannot {func} Durations with different frames.\n"
                 f"LHS: {self._frame}\n"
-                f"RHS: {rhs._frame}")
+                f"RHS: {rhs._frame}"
+            )
