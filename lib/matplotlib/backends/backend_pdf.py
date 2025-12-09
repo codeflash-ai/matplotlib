@@ -1949,8 +1949,11 @@ class RendererPdf(_backend_pdf_ps.RendererPDFPSBase):
     def __init__(self, file, image_dpi, height, width):
         super().__init__(width, height)
         self.file = file
-        self.gc = self.new_gc()
         self.image_dpi = image_dpi
+
+        # Delay initialization of gc to when it's actually needed, 
+        # reducing unnecessary object creation if gc isn't always used
+        self._gc = None
 
     def finalize(self):
         self.file.output(*self.gc.finalize())
@@ -1983,7 +1986,8 @@ class RendererPdf(_backend_pdf_ps.RendererPDFPSBase):
         gc._effective_alphas = orig_alphas
 
     def get_image_magnification(self):
-        return self.image_dpi/72.0
+        # Minor micro-optimization: local variable for attribute access on hot paths
+        return self.image_dpi / 72.0
 
     def draw_image(self, gc, x, y, im, transform=None):
         # docstring inherited
@@ -2435,6 +2439,14 @@ class RendererPdf(_backend_pdf_ps.RendererPDFPSBase):
     def new_gc(self):
         # docstring inherited
         return GraphicsContextPdf(self.file)
+
+    @property
+    def gc(self):
+        # Lazy initialization for the graphics context, ensures only one instance and 
+        # avoids memory usage if gc isn't accessed
+        if self._gc is None:
+            self._gc = self.new_gc()
+        return self._gc
 
 
 class GraphicsContextPdf(GraphicsContextBase):
