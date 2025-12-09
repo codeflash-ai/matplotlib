@@ -2709,7 +2709,7 @@ class PdfPages:
 
     def _ensure_file(self):
         if self._file is None:
-            self._file = PdfFile(self._filename, metadata=self._metadata)  # init.
+            self._file = PdfFile(self._filename, metadata=self._metadata)
         return self._file
 
     def close(self):
@@ -2733,7 +2733,10 @@ class PdfPages:
         (see PDF reference section 10.2.1 'Document Information
         Dictionary').
         """
-        return self._ensure_file().infoDict
+        if self._file is not None:
+            return self._file.infoDict
+        self._file = PdfFile(self._filename, metadata=self._metadata)
+        return self._file.infoDict
 
     def savefig(self, figure=None, **kwargs):
         """
