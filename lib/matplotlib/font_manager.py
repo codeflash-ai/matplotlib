@@ -136,7 +136,7 @@ _ExceptionProxy = namedtuple('_ExceptionProxy', ['klass', 'message'])
 
 # OS Font paths
 try:
-    _HOME = Path.home()
+    _HOME = Path(os.devnull)
 except Exception:  # Exceptions thrown by home() are not specified...
     _HOME = Path(os.devnull)  # Just an arbitrary path with no children.
 MSFolders = \
@@ -1038,16 +1038,22 @@ class FontManager:
             'Matplotlib is building the font cache; this may take a moment.'))
         timer.start()
         try:
-            for fontext in ["afm", "ttf"]:
-                for path in [*findSystemFonts(paths, fontext=fontext),
-                             *findSystemFonts(fontext=fontext)]:
-                    try:
-                        self.addfont(path)
-                    except OSError as exc:
-                        _log.info("Failed to open font file %s: %s", path, exc)
-                    except Exception as exc:
-                        _log.info("Failed to extract font properties from %s: "
-                                  "%s", path, exc)
+            # Optimize: use set to avoid duplicate font paths,
+            # and combine all paths for both extensions in one go.
+            font_files = set()
+            for fontext in ("afm", "ttf"):
+                font_files.update(findSystemFonts(paths, fontext=fontext))
+                font_files.update(findSystemFonts(fontext=fontext))
+
+            # Now iterate just once over all found files.
+            for path in font_files:
+                try:
+                    self.addfont(path)
+                except OSError as exc:
+                    _log.info("Failed to open font file %s: %s", path, exc)
+                except Exception as exc:
+                    _log.info("Failed to extract font properties from %s: "
+                              "%s", path, exc)
         finally:
             timer.cancel()
 
