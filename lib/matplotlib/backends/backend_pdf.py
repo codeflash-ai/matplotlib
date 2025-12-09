@@ -249,8 +249,9 @@ def _get_coordinates_of_block(x, y, width, height, angle=0):
     rotated rectangle.
     """
 
-    vertices = _calculate_quad_point_coordinates(x, y, width,
-                                                 height, angle)
+    vertices = _calculate_quad_point_coordinates(x, y, width, height, angle)
+
+    # Avoid generator overhead, compute min/max with a single loop.
 
     # Find min and max values for rectangle
     # adjust so that QuadPoints is inside Rect
@@ -259,12 +260,31 @@ def _get_coordinates_of_block(x, y, width, height, angle=0):
     # border of Rect.
 
     pad = 0.00001 if angle % 90 else 0
-    min_x = min(v[0] for v in vertices) - pad
-    min_y = min(v[1] for v in vertices) - pad
-    max_x = max(v[0] for v in vertices) + pad
-    max_y = max(v[1] for v in vertices) + pad
-    return (tuple(itertools.chain.from_iterable(vertices)),
-            (min_x, min_y, max_x, max_y))
+    x0, y0 = vertices[0]
+    min_x = max_x = x0
+    min_y = max_y = y0
+    for vx, vy in vertices[1:]:
+        if vx < min_x:
+            min_x = vx
+        elif vx > max_x:
+            max_x = vx
+        if vy < min_y:
+            min_y = vy
+        elif vy > max_y:
+            max_y = vy
+    min_x -= pad
+    min_y -= pad
+    max_x += pad
+    max_y += pad
+
+    # Explicitly flatten vertices for slightly faster tuple creation
+    quadpoints = (
+        vertices[0][0], vertices[0][1],
+        vertices[1][0], vertices[1][1],
+        vertices[2][0], vertices[2][1],
+        vertices[3][0], vertices[3][1],
+    )
+    return quadpoints, (min_x, min_y, max_x, max_y)
 
 
 def _get_link_annotation(gc, x, y, width, height, angle=0):
