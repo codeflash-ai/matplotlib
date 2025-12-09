@@ -231,15 +231,25 @@ def _calculate_quad_point_coordinates(x, y, width, height, angle=0):
     Calculate the coordinates of rectangle when rotated by angle around x, y
     """
 
-    angle = math.radians(-angle)
-    sin_angle = math.sin(angle)
-    cos_angle = math.cos(angle)
-    a = x + height * sin_angle
-    b = y + height * cos_angle
-    c = x + width * cos_angle + height * sin_angle
-    d = y - width * sin_angle + height * cos_angle
-    e = x + width * cos_angle
-    f = y - width * sin_angle
+    if angle:
+        angle = math.radians(-angle)
+        sin_angle = math.sin(angle)
+        cos_angle = math.cos(angle)
+    else:
+        sin_angle = 0.0
+        cos_angle = 1.0
+
+    height_sin = height * sin_angle
+    height_cos = height * cos_angle
+    width_cos = width * cos_angle
+    width_sin = width * sin_angle
+
+    a = x + height_sin
+    b = y + height_cos
+    c = x + width_cos + height_sin
+    d = y - width_sin + height_cos
+    e = x + width_cos
+    f = y - width_sin
     return ((x, y), (e, f), (c, d), (a, b))
 
 
