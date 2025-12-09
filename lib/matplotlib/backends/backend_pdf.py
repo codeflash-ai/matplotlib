@@ -2470,7 +2470,7 @@ class GraphicsContextPdf(GraphicsContextBase):
         An optional argument can be used to specify an alternative
         _fillcolor, as needed by RendererPdf.draw_markers.
         """
-        if len(args):
+        if args:
             _fillcolor = args[0]
         else:
             _fillcolor = self._fillcolor
