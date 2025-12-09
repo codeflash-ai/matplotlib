@@ -98,29 +98,29 @@ weight_dict = {
 _weight_regexes = [
     # From fontconfig's FcFreeTypeQueryFaceInternal; not the same as
     # weight_dict!
-    ("thin", 100),
-    ("extralight", 200),
-    ("ultralight", 200),
-    ("demilight", 350),
-    ("semilight", 350),
-    ("light", 300),  # Needs to come *after* demi/semilight!
-    ("book", 380),
-    ("regular", 400),
-    ("normal", 400),
-    ("medium", 500),
-    ("demibold", 600),
-    ("demi", 600),
-    ("semibold", 600),
-    ("extrabold", 800),
-    ("superbold", 800),
-    ("ultrabold", 800),
-    ("bold", 700),  # Needs to come *after* extra/super/ultrabold!
-    ("ultrablack", 1000),
-    ("superblack", 1000),
-    ("extrablack", 1000),
-    (r"\bultra", 1000),
-    ("black", 900),  # Needs to come *after* ultra/super/extrablack!
-    ("heavy", 900),
+    (re.compile("thin", re.I), 100),
+    (re.compile("extralight", re.I), 200),
+    (re.compile("ultralight", re.I), 200),
+    (re.compile("demilight", re.I), 350),
+    (re.compile("semilight", re.I), 350),
+    (re.compile("light", re.I), 300),  # Needs to come *after* demi/semilight!
+    (re.compile("book", re.I), 380),
+    (re.compile("regular", re.I), 400),
+    (re.compile("normal", re.I), 400),
+    (re.compile("medium", re.I), 500),
+    (re.compile("demibold", re.I), 600),
+    (re.compile("demi", re.I), 600),
+    (re.compile("semibold", re.I), 600),
+    (re.compile("extrabold", re.I), 800),
+    (re.compile("superbold", re.I), 800),
+    (re.compile("ultrabold", re.I), 800),
+    (re.compile("bold", re.I), 700),  # Needs to come *after* extra/super/ultrabold!
+    (re.compile("ultrablack", re.I), 1000),
+    (re.compile("superblack", re.I), 1000),
+    (re.compile("extrablack", re.I), 1000),
+    (re.compile(r"\bultra", re.I), 1000),
+    (re.compile("black", re.I), 900),  # Needs to come *after* ultra/super/extrablack!
+    (re.compile("heavy", re.I), 900),
 ]
 font_family_aliases = {
     'serif',
@@ -372,11 +372,12 @@ def ttfFontProperty(font):
     sfnt4 = (sfnt.get((*mac_key, 4), b'').decode('latin-1').lower() or
              sfnt.get((*ms_key, 4), b'').decode('utf_16_be').lower())
 
-    if sfnt4.find('oblique') >= 0:
+    # Choose style
+    if 'oblique' in sfnt4:
         style = 'oblique'
-    elif sfnt4.find('italic') >= 0:
+    elif 'italic' in sfnt4:
         style = 'italic'
-    elif sfnt2.find('regular') >= 0:
+    elif 'regular' in sfnt2:
         style = 'normal'
     elif font.style_flags & ft2font.ITALIC:
         style = 'italic'
@@ -396,15 +397,16 @@ def ttfFontProperty(font):
     wws_subfamily = 22
     typographic_subfamily = 16
     font_subfamily = 2
-    styles = [
+    style_names = (
         sfnt.get((*mac_key, wws_subfamily), b'').decode('latin-1'),
         sfnt.get((*mac_key, typographic_subfamily), b'').decode('latin-1'),
         sfnt.get((*mac_key, font_subfamily), b'').decode('latin-1'),
         sfnt.get((*ms_key, wws_subfamily), b'').decode('utf-16-be'),
         sfnt.get((*ms_key, typographic_subfamily), b'').decode('utf-16-be'),
         sfnt.get((*ms_key, font_subfamily), b'').decode('utf-16-be'),
-    ]
-    styles = [*filter(None, styles)] or [font.style_name]
+    )
+    styles = tuple(filter(None, style_names)) or (font.style_name,)
+
 
     def get_weight():  # From fontconfig's FcFreeTypeQueryFaceInternal.
         # OS/2 table weight.
@@ -419,13 +421,13 @@ def ttfFontProperty(font):
             pass
         else:
             for regex, weight in _weight_regexes:
-                if re.fullmatch(regex, ps_font_info_weight, re.I):
+                if regex.fullmatch(ps_font_info_weight):
                     return weight
         # Style name weight.
         for style in styles:
-            style = style.replace(" ", "")
+            style_compact = style.replace(" ", "")
             for regex, weight in _weight_regexes:
-                if re.search(regex, style, re.I):
+                if regex.search(style_compact):
                     return weight
         if font.style_flags & ft2font.BOLD:
             return 700  # "bold"
@@ -440,11 +442,11 @@ def ttfFontProperty(font):
     #  Relative stretches are: wider, narrower
     #  Child value is: inherit
 
-    if any(word in sfnt4 for word in ['narrow', 'condensed', 'cond']):
+    if any(word in sfnt4 for word in ('narrow', 'condensed', 'cond')):
         stretch = 'condensed'
     elif 'demi cond' in sfnt4:
         stretch = 'semi-condensed'
-    elif any(word in sfnt4 for word in ['wide', 'expanded', 'extended']):
+    elif any(word in sfnt4 for word in ('wide', 'expanded', 'extended')):
         stretch = 'expanded'
     else:
         stretch = 'normal'
