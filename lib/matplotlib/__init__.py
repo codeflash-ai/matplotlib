@@ -809,8 +809,9 @@ class RcParams(MutableMapping, dict):
     def copy(self):
         """Copy this RcParams instance."""
         rccopy = RcParams()
-        for k in self:  # Skip deprecations and revalidation.
-            rccopy._set(k, self._get(k))
+        items = dict.items(self)  # Use items view for single-pass iteration
+        for k, v in items:  # Skip deprecations and revalidation.
+            rccopy._set(k, v)
         return rccopy
 
 
