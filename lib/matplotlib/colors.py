@@ -803,7 +803,10 @@ class Colormap:
         """Get the color for masked values."""
         if not self._isinit:
             self._init()
-        return np.array(self._lut[self._i_bad])
+        lut_bad = self._lut[self._i_bad]
+        if isinstance(lut_bad, np.ndarray):
+            return lut_bad
+        return np.array(lut_bad)
 
     def set_bad(self, color='k', alpha=None):
         """Set the color for masked values."""
