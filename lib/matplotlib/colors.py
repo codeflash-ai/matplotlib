@@ -853,7 +853,18 @@ class Colormap:
         values and, when ``norm.clip = False``, low (*under*) and high (*over*)
         out-of-range values, have been set accordingly.
         """
-        new_cm = self.copy()
+        # Inline the self.copy() code (was: new_cm = self.copy())
+        cls = self.__class__
+        new_cm = cls.__new__(cls)
+        new_cm.__dict__.update(self.__dict__)
+        # No _lut copying because the default object never has it at init and
+        # __copy__ only copies it if present and self._isinit is True.
+        if getattr(self, '_isinit', False):
+            # Defensive: only copy _lut if already initialized
+            import numpy as np
+            new_cm._lut = np.copy(self._lut)
+        # .set_extremes may mutate _isinit/_lut as side effect so it must be after dict-copy, not before
+
         new_cm.set_extremes(bad=bad, under=under, over=over)
         return new_cm
 
@@ -964,7 +975,14 @@ class Colormap:
 
     def copy(self):
         """Return a copy of the colormap."""
-        return self.__copy__()
+        # Inline self.__copy__() for speed - logic copied from reference
+        cls = self.__class__
+        cmapobject = cls.__new__(cls)
+        cmapobject.__dict__.update(self.__dict__)
+        if getattr(self, '_isinit', False):
+            import numpy as np
+            cmapobject._lut = np.copy(self._lut)
+        return cmapobject
 
 
 class LinearSegmentedColormap(Colormap):
