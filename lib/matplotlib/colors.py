@@ -1086,11 +1086,18 @@ class LinearSegmentedColormap(Colormap):
 
     def resampled(self, lutsize):
         """Return a new colormap with *lutsize* entries."""
-        new_cmap = LinearSegmentedColormap(self.name, self._segmentdata,
-                                           lutsize)
-        new_cmap._rgba_over = self._rgba_over
-        new_cmap._rgba_under = self._rgba_under
-        new_cmap._rgba_bad = self._rgba_bad
+        # Avoid repeating self._segmentdata lookups and avoid attribute writes in hot path
+        segmentdata = self._segmentdata
+        name = self.name
+        rgba_over = self._rgba_over
+        rgba_under = self._rgba_under
+        rgba_bad = self._rgba_bad
+
+        # Move all assignments after construction for cache-friendly order
+        new_cmap = LinearSegmentedColormap(name, segmentdata, lutsize)
+        new_cmap._rgba_over = rgba_over
+        new_cmap._rgba_under = rgba_under
+        new_cmap._rgba_bad = rgba_bad
         return new_cmap
 
     # Helper ensuring picklability of the reversed cmap.
