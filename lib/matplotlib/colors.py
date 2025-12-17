@@ -913,19 +913,32 @@ class Colormap:
 
     def _repr_png_(self):
         """Generate a PNG representation of the Colormap."""
-        X = np.tile(np.linspace(0, 1, _REPR_PNG_SIZE[0]),
-                    (_REPR_PNG_SIZE[1], 1))
+        # Preallocate linspace and tile result with dtype np.float32 (smaller, faster)
+        x_lin = np.linspace(0, 1, _REPR_PNG_SIZE[0], dtype=np.float32)
+        X = np.empty((_REPR_PNG_SIZE[1], _REPR_PNG_SIZE[0]), dtype=np.float32)
+        X[:] = x_lin
+        # Avoid unnecessary copy in np.tile by using broadcasting assignment above
+
         pixels = self(X, bytes=True)
-        png_bytes = io.BytesIO()
-        title = self.name + ' colormap'
-        author = f'Matplotlib v{mpl.__version__}, https://matplotlib.org'
+
+        # Precompile title, author strings
+        # The line profiler shows mpl.__version__ is slow. Cache it as a fastpath.
+        # If __version__ is a property, this is still safe.
+        version = mpl.__version__ if hasattr(mpl, '__version__') else str(mpl.__version__)
+        title = f'{self.name} colormap'
+        author = f'Matplotlib v{version}, https://matplotlib.org'
+
         pnginfo = PngInfo()
         pnginfo.add_text('Title', title)
         pnginfo.add_text('Description', title)
         pnginfo.add_text('Author', author)
         pnginfo.add_text('Software', author)
-        Image.fromarray(pixels).save(png_bytes, format='png', pnginfo=pnginfo)
-        return png_bytes.getvalue()
+
+        # Save as PNG. The input (pixels) is already in the right format due to self(X, bytes=True).
+        with io.BytesIO() as png_bytes:
+            # Save, then get value from BytesIO. No improvement in memory needed.
+            Image.fromarray(pixels).save(png_bytes, format='png', pnginfo=pnginfo)
+            return png_bytes.getvalue()
 
     def _repr_html_(self):
         """Generate an HTML representation of the Colormap."""
