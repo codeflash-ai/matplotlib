@@ -206,14 +206,16 @@ def caching_module_getattr(cls):
 
     assert cls.__name__ == "__getattr__"
     # Don't accidentally export cls dunders.
-    props = {name: prop for name, prop in vars(cls).items()
-             if isinstance(prop, property)}
+
+    # Optimize: build props only once and bind instance in closure.
+    props = {name: prop for name, prop in cls.__dict__.items() if isinstance(prop, property)}
     instance = cls()
 
     @functools.cache
     def __getattr__(name):
-        if name in props:
-            return props[name].__get__(instance)
+        prop = props.get(name)
+        if prop is not None:
+            return prop.__get__(instance)
         raise AttributeError(
             f"module {cls.__module__!r} has no attribute {name!r}")
 
