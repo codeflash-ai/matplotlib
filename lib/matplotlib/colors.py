@@ -785,7 +785,7 @@ class Colormap:
         cmapobject = cls.__new__(cls)
         cmapobject.__dict__.update(self.__dict__)
         if self._isinit:
-            cmapobject._lut = np.copy(self._lut)
+            cmapobject._lut = self._lut.copy()
         return cmapobject
 
     def __eq__(self, other):
