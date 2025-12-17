@@ -1703,19 +1703,35 @@ def make_norm_from_scale(scale_cls, base_norm_cls=None, *, init=None):
     if base_norm_cls is None:
         return functools.partial(make_norm_from_scale, scale_cls, init=init)
 
-    if isinstance(scale_cls, functools.partial):
+    # Avoid expensive isinstance check and attribute lookup: check type and attr directly
+    scale_args = ()
+    scale_kwargs_items = ()
+    if type(scale_cls) is functools.partial:
         scale_args = scale_cls.args
-        scale_kwargs_items = tuple(scale_cls.keywords.items())
+        # In CPython, .keywords can be None or dict
+        scale_kwargs = scale_cls.keywords if scale_cls.keywords is not None else {}
+        scale_kwargs_items = tuple(scale_kwargs.items())
         scale_cls = scale_cls.func
-    else:
-        scale_args = scale_kwargs_items = ()
 
+    # Cache the signature lookup for the default case
     if init is None:
-        def init(vmin=None, vmax=None, clip=False): pass
+        # Use static signature, avoid function definition overhead
+        default_signature = inspect.Signature([
+            inspect.Parameter("vmin", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None),
+            inspect.Parameter("vmax", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=None),
+            inspect.Parameter("clip", inspect.Parameter.POSITIONAL_OR_KEYWORD, default=False)
+        ])
+        sig = default_signature
+    else:
+        # Signature is always reused within call
+        sig = inspect.signature(init)
+
+    # Fastest path to cached _make_norm_from_scale
 
     return _make_norm_from_scale(
         scale_cls, scale_args, scale_kwargs_items,
-        base_norm_cls, inspect.signature(init))
+        base_norm_cls, sig
+    )
 
 
 @functools.cache
@@ -1746,8 +1762,9 @@ def _make_norm_from_scale(
             # class).  If either import or attribute access fails, fall back to
             # the general path.
             try:
-                if cls is getattr(importlib.import_module(cls.__module__),
-                                  cls.__qualname__):
+                m = importlib.import_module(cls.__module__)
+                attr = getattr(m, cls.__qualname__)
+                if cls is attr:
                     return (_create_empty_object_of_class, (cls,), vars(self))
             except (ImportError, AttributeError):
                 pass
@@ -1761,9 +1778,11 @@ def _make_norm_from_scale(
             ba.apply_defaults()
             super().__init__(
                 **{k: ba.arguments.pop(k) for k in ["vmin", "vmax", "clip"]})
+            # Avoid creating dict every call, build once at class construction
+            scale_kwargs = dict(scale_kwargs_items)
             self._scale = functools.partial(
-                scale_cls, *scale_args, **dict(scale_kwargs_items))(
-                    axis=None, **ba.arguments)
+                scale_cls, *scale_args, **scale_kwargs)(
+                axis=None, **ba.arguments)
             self._trf = self._scale.get_transform()
 
         __init__.__signature__ = bound_init_signature.replace(parameters=[
@@ -1772,18 +1791,22 @@ def _make_norm_from_scale(
 
         def __call__(self, value, clip=None):
             value, is_scalar = self.process_value(value)
-            if self.vmin is None or self.vmax is None:
+            vmin = self.vmin
+            vmax = self.vmax
+            if vmin is None or vmax is None:
                 self.autoscale_None(value)
-            if self.vmin > self.vmax:
+                vmin = self.vmin
+                vmax = self.vmax
+            if vmin > vmax:
                 raise ValueError("vmin must be less or equal to vmax")
-            if self.vmin == self.vmax:
+            if vmin == vmax:
                 return np.full_like(value, 0)
             if clip is None:
                 clip = self.clip
             if clip:
-                value = np.clip(value, self.vmin, self.vmax)
+                value = np.clip(value, vmin, vmax)
             t_value = self._trf.transform(value).reshape(np.shape(value))
-            t_vmin, t_vmax = self._trf.transform([self.vmin, self.vmax])
+            t_vmin, t_vmax = self._trf.transform([vmin, vmax])
             if not np.isfinite([t_vmin, t_vmax]).all():
                 raise ValueError("Invalid vmin or vmax")
             t_value -= t_vmin
@@ -1794,9 +1817,11 @@ def _make_norm_from_scale(
         def inverse(self, value):
             if not self.scaled():
                 raise ValueError("Not invertible until scaled")
-            if self.vmin > self.vmax:
+            vmin = self.vmin
+            vmax = self.vmax
+            if vmin > vmax:
                 raise ValueError("vmin must be less or equal to vmax")
-            t_vmin, t_vmax = self._trf.transform([self.vmin, self.vmax])
+            t_vmin, t_vmax = self._trf.transform([vmin, vmax])
             if not np.isfinite([t_vmin, t_vmax]).all():
                 raise ValueError("Invalid vmin or vmax")
             value, is_scalar = self.process_value(value)
