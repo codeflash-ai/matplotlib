@@ -162,6 +162,8 @@ from matplotlib._api import MatplotlibDeprecationWarning
 from matplotlib.rcsetup import cycler  # noqa: F401
 from matplotlib.rcsetup import validate_backend
 
+_mplbackend = os.environ.get('MPLBACKEND')
+
 
 _log = logging.getLogger(__name__)
 

@@ -78,6 +78,7 @@ from matplotlib.cm import _colormaps
 from matplotlib.colors import _color_sequences, Colormap
 
 import numpy as np
+import matplotlib.backends
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Iterable, Sequence
@@ -617,7 +618,7 @@ def isinteractive() -> bool:
     show : Show all figures (and maybe block).
     pause : Show all figures, and block for a time.
     """
-    return matplotlib.is_interactive()
+    return rcParams['interactive']
 
 
 # Note: The return type of ioff being AbstractContextManager
