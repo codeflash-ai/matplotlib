@@ -319,12 +319,14 @@ def select_matching_signature(funcs, *args, **kwargs):
     # Rather than relying on locals() ordering, one could have just used func's
     # signature (``bound = inspect.signature(func).bind(*args, **kwargs);
     # bound.apply_defaults(); return bound``) but that is significantly slower.
-    for i, func in enumerate(funcs):
+    last_exception = None
+    for func in funcs:
         try:
             return func(*args, **kwargs)
-        except TypeError:
-            if i == len(funcs) - 1:
-                raise
+        except TypeError as exc:
+            last_exception = exc
+    if last_exception is not None:
+        raise last_exception
 
 
 def nargs_error(name, takes, given):
