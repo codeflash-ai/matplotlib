@@ -2207,26 +2207,59 @@ def rgb_to_hsv(arr):
         dtype=np.promote_types(arr.dtype, np.float32),  # Don't work on ints.
         ndmin=2,  # In case input was 1D.
     )
-    out = np.zeros_like(arr)
-    arr_max = arr.max(-1)
-    ipos = arr_max > 0
-    delta = np.ptp(arr, -1)
-    s = np.zeros_like(delta)
-    s[ipos] = delta[ipos] / arr_max[ipos]
-    ipos = delta > 0
-    # red is max
-    idx = (arr[..., 0] == arr_max) & ipos
-    out[idx, 0] = (arr[idx, 1] - arr[idx, 2]) / delta[idx]
-    # green is max
-    idx = (arr[..., 1] == arr_max) & ipos
-    out[idx, 0] = 2. + (arr[idx, 2] - arr[idx, 0]) / delta[idx]
-    # blue is max
-    idx = (arr[..., 2] == arr_max) & ipos
-    out[idx, 0] = 4. + (arr[idx, 0] - arr[idx, 1]) / delta[idx]
 
-    out[..., 0] = (out[..., 0] / 6.0) % 1.0
-    out[..., 1] = s
+    # Use single allocations/buffers for memory efficiency and faster math
+    r = arr[..., 0]
+    g = arr[..., 1]
+    b = arr[..., 2]
+
+    arr_max = np.maximum.reduce([r, g, b])
+    arr_min = np.minimum.reduce([r, g, b])
+    delta = arr_max - arr_min
+
+    # Initialize output in one allocation
+    out = np.empty_like(arr)
+    
+    # Value
     out[..., 2] = arr_max
+
+    # Saturation
+    mask_maxpos = arr_max > 0
+    s = np.zeros_like(arr_max)
+    # Avoid division by zero; only operate where arr_max > 0
+    np.divide(delta, arr_max, out=s, where=mask_maxpos)
+    out[..., 1] = s
+
+    # Hue
+    h = np.zeros_like(arr_max)
+
+    mask = delta > 0
+
+    # Red is max
+    mask_r = (r == arr_max) & mask
+    # Green is max
+    mask_g = (g == arr_max) & mask
+    # Blue is max
+    mask_b = (b == arr_max) & mask
+
+    # Only compute in masked positions; avoids repeated indexing with boolean arrays
+    delta_safe = np.where(delta == 0, 1, delta)  # avoids div0 but doesn't matter (mask excludes)
+    h_r = np.empty_like(h)
+    h_g = np.empty_like(h)
+    h_b = np.empty_like(h)
+    np.subtract(g, b, out=h_r)
+    np.divide(h_r, delta_safe, out=h_r)
+    np.subtract(b, r, out=h_g)
+    np.divide(h_g, delta_safe, out=h_g)
+    np.subtract(r, g, out=h_b)
+    np.divide(h_b, delta_safe, out=h_b)
+
+    h[mask_r] = h_r[mask_r]
+    h[mask_g] = 2.0 + h_g[mask_g]
+    h[mask_b] = 4.0 + h_b[mask_b]
+    h = (h / 6.0) % 1.0
+
+    out[..., 0] = h
 
     return out.reshape(in_shape)
 
