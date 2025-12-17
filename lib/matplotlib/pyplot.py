@@ -78,6 +78,7 @@ from matplotlib.cm import _colormaps
 from matplotlib.colors import _color_sequences, Colormap
 
 import numpy as np
+import matplotlib.backends
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Iterable, Sequence
@@ -1088,7 +1089,7 @@ def fignum_exists(num: int | str) -> bool:
     return (
         _pylab_helpers.Gcf.has_fignum(num)
         if isinstance(num, int)
-        else num in get_figlabels()
+        else num in _figlabels_set()
     )
 
 
@@ -4492,3 +4493,10 @@ def nipy_spectral() -> None:
     image if there is one. See ``help(colormaps)`` for more information.
     """
     set_cmap("nipy_spectral")
+
+
+def _figlabels_set() -> set[Any]:
+    """Helper for fast membership check of string figure labels."""
+    return {
+        m.canvas.figure.get_label() for m in _pylab_helpers.Gcf.get_all_fig_managers()
+    }
