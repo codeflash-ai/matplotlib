@@ -1626,7 +1626,8 @@ default: %(va)s
         # If there is no image in the current Axes, search for
         # one in a previously created Axes.  Whether this makes
         # sense is debatable, but it is the documented behavior.
-        for ax in reversed(self.axes):
+        axes = self.axes
+        for ax in reversed(axes):
             im = ax._gci()
             if im is not None:
                 return im
