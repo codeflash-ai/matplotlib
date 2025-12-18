@@ -1067,8 +1067,7 @@ def gcf() -> Figure:
     manager = _pylab_helpers.Gcf.get_active()
     if manager is not None:
         return manager.canvas.figure
-    else:
-        return figure()
+    return figure()
 
 
 def fignum_exists(num: int | str) -> bool:
