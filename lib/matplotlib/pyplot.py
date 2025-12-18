@@ -62,7 +62,7 @@ from matplotlib import interactive  # noqa: F401
 from matplotlib import cbook
 from matplotlib import _docstring
 from matplotlib.backend_bases import (
-    FigureCanvasBase, FigureManagerBase, MouseButton)
+    NavigationToolbar2, ToolContainerBase, FigureCanvasBase, FigureManagerBase, MouseButton)
 from matplotlib.figure import Figure, FigureBase, figaspect
 from matplotlib.gridspec import GridSpec, SubplotSpec
 from matplotlib import rcsetup, rcParamsDefault, rcParamsOrig
@@ -78,6 +78,7 @@ from matplotlib.cm import _colormaps
 from matplotlib.colors import _color_sequences, Colormap
 
 import numpy as np
+import matplotlib.backends
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Hashable, Iterable, Sequence
@@ -1963,10 +1964,8 @@ def subplot_tool(targetfig: Figure | None = None) -> SubplotTool | None:
         targetfig = gcf()
     tb = targetfig.canvas.manager.toolbar  # type: ignore[union-attr]
     if hasattr(tb, "configure_subplots"):  # toolbar2
-        from matplotlib.backend_bases import NavigationToolbar2
         return cast(NavigationToolbar2, tb).configure_subplots()
     elif hasattr(tb, "trigger_tool"):  # toolmanager
-        from matplotlib.backend_bases import ToolContainerBase
         cast(ToolContainerBase, tb).trigger_tool("subplots")
         return None
     else:
