@@ -2426,10 +2426,15 @@ class Parser:
         return []
 
     def is_overunder(self, nucleus: Node) -> bool:
-        if isinstance(nucleus, Char):
-            return nucleus.c in self._overunder_symbols
-        elif isinstance(nucleus, Hlist) and hasattr(nucleus, 'function_name'):
-            return nucleus.function_name in self._overunder_functions
+        # OPTIMIZED: eliminate repeated hasattr on Hlist that are not Hlists,
+        # avoid double work for isinstance checks
+        nc = nucleus
+        if type(nc) is Char:
+            # type() check is faster and sufficient here, also avoids inheritance issues
+            return nc.c in self._overunder_symbols
+        if type(nc) is Hlist:
+            # Only check attribute if we're sure it's Hlist for maximal speed
+            return getattr(nc, 'function_name', None) in self._overunder_functions
         return False
 
     def is_dropsub(self, nucleus: Node) -> bool:
