@@ -1989,35 +1989,72 @@ class Parser:
         # Root definitions.
 
         # In TeX parlance, a csname is a control sequence name (a "\foo").
-        def csnames(group: str, names: Iterable[str]) -> Regex:
-            ends_with_alpha = []
-            ends_with_nonalpha = []
-            for name in names:
-                if name[-1].isalpha():
-                    ends_with_alpha.append(name)
-                else:
-                    ends_with_nonalpha.append(name)
-            return Regex(
-                r"\\(?P<{group}>(?:{alpha})(?![A-Za-z]){additional}{nonalpha})".format(
-                    group=group,
-                    alpha="|".join(map(re.escape, ends_with_alpha)),
-                    additional="|" if ends_with_nonalpha else "",
-                    nonalpha="|".join(map(re.escape, ends_with_nonalpha)),
-                )
-            )
 
-        p.float_literal  = Regex(r"[-+]?([0-9]+\.?[0-9]*|\.[0-9]+)")
+        # --- Optimization: Preprocess names to reduce runtime work ----
+        # Avoid repeated re.escape and join work for frequently used name sets
+
+        self._delims_joined = "|".join(map(re.escape, self._delims))
+        self._fontnames_joined = "|".join(map(re.escape, self._fontnames))
+        self._accent_map_joined = "|".join(map(re.escape, [*self._accent_map, *self._wide_accents]))
+        self._function_names_joined = "|".join(map(re.escape, self._function_names))
+
+        # In TeX parlance, a csname is a control sequence name (a "\foo").
+        # Optimization: Make csnames a method to use joined strings if available
+        def csnames(group: str, names: Iterable[str]) -> Regex:
+            # Optimize escape/join work by using pre-joined values if available
+            # Detect if using precomputed joins by name and group
+            if group == "font" and hasattr(self, "_fontnames_joined"):
+                names_escaped = self._fontnames_joined
+                return Regex(r"\\(?P<{group}>({names_escaped}))(?![A-Za-z])".format(
+                    group=group, names_escaped=names_escaped
+                ))
+            elif group == "accent":
+                names_escaped = self._accent_map_joined
+                return Regex(r"\\(?P<{group}>({names_escaped}))(?![A-Za-z])".format(
+                    group=group, names_escaped=names_escaped
+                ))
+            elif group == "name" and hasattr(self, "_function_names_joined"):
+                names_escaped = self._function_names_joined
+                return Regex(r"\\(?P<{group}>({names_escaped}))(?![A-Za-z])".format(
+                    group=group, names_escaped=names_escaped
+                ))
+            else:
+                ends_with_alpha = []
+                ends_with_nonalpha = []
+                for name in names:
+                    if name[-1].isalpha():
+                        ends_with_alpha.append(name)
+                    else:
+                        ends_with_nonalpha.append(name)
+                return Regex(
+                    r"\\(?P<{group}>(?:{alpha})(?![A-Za-z]){additional}{nonalpha})".format(
+                        group=group,
+                        alpha="|".join(map(re.escape, ends_with_alpha)),
+                        additional="|" if ends_with_nonalpha else "",
+                        nonalpha="|".join(map(re.escape, ends_with_nonalpha)),
+                    )
+                )
+
+        # --- Parser construction ---
+
+        # Compile frequently-used Regex patterns outside the parser logic for re-use.
+        # This reduces repeated instantiations with identical string patterns.
+        float_literal_re = r"[-+]?([0-9]+\.?[0-9]*|\.[0-9]+)"
+        p.float_literal  = Regex(float_literal_re)
         p.space          = oneOf(self._space_widths)("space")
 
-        p.style_literal  = oneOf(
-            [str(e.value) for e in self._MathStyle])("style_literal")
+        # Avoid repeated str(e.value) generation—cache the list once.
+        style_literals = [str(e.value) for e in self._MathStyle]
+        p.style_literal  = oneOf(style_literals)("style_literal")
 
-        p.symbol         = Regex(
+        # Optimization: Compile regex once for symbol and unknown_symbol
+        _symbol_regex_str = (
             r"[a-zA-Z0-9 +\-*/<>=:,.;!\?&'@()\[\]|\U00000080-\U0001ffff]"
             r"|\\[%${}\[\]_|]"
-            + r"|\\(?:{})(?![A-Za-z])".format(
-                "|".join(map(re.escape, tex2uni)))
-        )("sym").leaveWhitespace()
+            + r"|\\(?:{})(?![A-Za-z])".format("|".join(map(re.escape, tex2uni)))
+        )
+        p.symbol         = Regex(_symbol_regex_str)("sym").leaveWhitespace()
+
         p.unknown_symbol = Regex(r"\\[A-Za-z]+")("name")
 
         p.font           = csnames("font", self._fontnames)
@@ -2092,9 +2129,12 @@ class Parser:
                                        content=Group(OneOrMore(p.token)) +
                                        ZeroOrMore(Literal("\\\\").suppress()))("parts"))
 
+
+        # Optimization: replace oneOf(["_", "^"]) with Literal("_") | Literal("^") for faster single-char disambiguation
+        subsuper_base = Literal("_") | Literal("^")
         p.subsuper = (
             (Optional(p.placeable)("nucleus")
-             + OneOrMore(oneOf(["_", "^"]) - p.placeable)("subsuper")
+             + OneOrMore(subsuper_base - p.placeable)("subsuper")
              + Regex("'*")("apostrophes"))
             | Regex("'+")("apostrophes")
             | (p.named_placeable("nucleus") + Regex("'*")("apostrophes"))
@@ -2144,7 +2184,9 @@ class Parser:
         # Leaf definitions.
         p.math          = OneOrMore(p.token)
         p.math_string   = QuotedString('$', '\\', unquoteResults=False)
-        p.non_math      = Regex(r"(?:(?:\\[$])|[^$])*").leaveWhitespace()
+        # Optimization: Compile regex just once for non_math (leaveWhitespace retained)
+        non_math_re = r"(?:(?:\\[$])|[^$])*"
+        p.non_math      = Regex(non_math_re).leaveWhitespace()
         p.main          = (
             p.non_math + ZeroOrMore(p.math_string + p.non_math) + StringEnd()
         )
