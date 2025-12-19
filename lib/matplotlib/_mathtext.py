@@ -1745,7 +1745,19 @@ def Error(msg: str) -> ParserElement:
     def raise_error(s: str, loc: int, toks: ParseResults) -> T.Any:
         raise ParseFatalException(s, loc, msg)
 
-    return Empty().setParseAction(raise_error)
+    # Store Empty() as a static variable, and clone it for each call
+    # This avoids the cost of creating a new Empty instance each time
+    # but preserves the behavior of getting a fresh parser element (no side effects)
+    if not hasattr(Error, "_empty_with_action"):
+        e = Empty().setParseAction(raise_error)
+        Error._empty_with_action = e
+        Error._raise_error = raise_error
+    else:
+        e = Error._empty_with_action
+        raise_error = Error._raise_error
+
+    # Clone the parser element to avoid any potential mutation
+    return e.copy()
 
 
 class ParserState:
