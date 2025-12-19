@@ -480,6 +480,7 @@ class RadialLocator(mticker.Locator):
     def __init__(self, base, axes=None):
         self.base = base
         self._axes = axes
+        self._zero_in_bounds_cache = None
 
     def set_axis(self, axis):
         self.base.set_axis(axis)
@@ -498,8 +499,14 @@ class RadialLocator(mticker.Locator):
         Return True if zero is within the valid values for the
         scale of the radial axis.
         """
+        if self._zero_in_bounds_cache is not None:
+            cached_axes, cached_result = self._zero_in_bounds_cache
+            if cached_axes is self._axes:
+                return cached_result
         vmin, vmax = self._axes.yaxis._scale.limit_range_for_scale(0, 1, 1e-5)
-        return vmin == 0
+        result = vmin == 0
+        self._zero_in_bounds_cache = (self._axes, result)
+        return result
 
     def nonsingular(self, vmin, vmax):
         # docstring inherited
