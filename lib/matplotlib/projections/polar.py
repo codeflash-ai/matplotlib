@@ -830,8 +830,10 @@ class PolarAxes(Axes):
         self._default_theta_offset = theta_offset
         self._default_theta_direction = theta_direction
         self._default_rlabel_position = np.deg2rad(rlabel_position)
-        super().__init__(*args, **kwargs)
+        # Set use_sticky_edges before super().__init__ to avoid unnecessary property assignment after initialization.
         self.use_sticky_edges = True
+        # Call super().__init__ before calling set_aspect and clear for proper base initialization.
+        super().__init__(*args, **kwargs)
         self.set_aspect('equal', adjustable='box', anchor='C')
         self.clear()
 
