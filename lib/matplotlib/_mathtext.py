@@ -1089,6 +1089,7 @@ class Char(Node):
         # The real width, height and depth will be set during the
         # pack phase, after we know the real fontsize
         self._update_metrics()
+        self._is_slanted = self._metrics.slanted
 
     def __repr__(self) -> str:
         return '`%s`' % self.c
@@ -1104,7 +1105,7 @@ class Char(Node):
         self.depth = -(metrics.iceberg - metrics.height)
 
     def is_slanted(self) -> bool:
-        return self._metrics.slanted
+        return self._is_slanted
 
     def get_kerning(self, next: Node | None) -> float:
         """
