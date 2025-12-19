@@ -254,9 +254,14 @@ class InvertedPolarTransform(mtransforms.Transform):
 
     def inverted(self):
         # docstring inherited
-        return PolarAxes.PolarTransform(
-            self._axis, self._use_rmin,
-            apply_theta_transforms=self._apply_theta_transforms
+        # Cache local variables to avoid repeated attribute/dict lookups in tight loops
+        axis = self._axis
+        use_rmin = self._use_rmin
+        apply_theta_transforms = self._apply_theta_transforms
+        PolarTransform = PolarAxes.PolarTransform  # localize attribute lookup
+        return PolarTransform(
+            axis, use_rmin,
+            apply_theta_transforms=apply_theta_transforms
         )
 
 
